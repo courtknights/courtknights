@@ -170,6 +170,6 @@ OAuth2 redirect and Device flows require browser interaction and external provid
 
 ## Sign-off
 
-| Role | Name | Date | Status |
-|------|------|------|--------|
-| Architect | | | ⬜ pending |
+| Role      | Name  | Date       | Status   |
+| --------- | ----- | ---------- | -------- |
+| Architect | aagea | 2026-03-18 | [x] done |
