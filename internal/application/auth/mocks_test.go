@@ -37,6 +37,10 @@ func (m *mockUserRepository) Upsert(ctx context.Context, u *user.User) (*user.Us
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
+func (m *mockUserRepository) UpdateRole(ctx context.Context, id uuid.UUID, role user.Role) error {
+	return m.Called(ctx, id, role).Error(0)
+}
+
 // mockPATRepository is a testify mock for pat.PATRepository.
 type mockPATRepository struct{ mock.Mock }
 

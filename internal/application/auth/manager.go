@@ -36,6 +36,9 @@ type AuthManager interface {
 	RevokePAT(ctx context.Context, id uuid.UUID) error
 	ListPATs(ctx context.Context) ([]*pat.PAT, error)
 
+	// User management
+	UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error
+
 	// Bootstrap
 	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error)
 }
@@ -113,6 +116,10 @@ func (m *authManager) RevokePAT(ctx context.Context, id uuid.UUID) error {
 
 func (m *authManager) ListPATs(ctx context.Context) ([]*pat.PAT, error) {
 	return m.user.ListPATs(ctx)
+}
+
+func (m *authManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error {
+	return m.user.UpdateUserRole(ctx, userID, role)
 }
 
 func (m *authManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {

@@ -22,6 +22,7 @@ type UserManager interface {
 	RevokePAT(ctx context.Context, id uuid.UUID) error
 	ListPATs(ctx context.Context) ([]*pat.PAT, error)
 	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error)
+	UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error
 }
 
 type userManager struct {
@@ -124,6 +125,13 @@ func (m *userManager) ListPATs(ctx context.Context) ([]*pat.PAT, error) {
 		return nil, fmt.Errorf("user manager: ListPATs: %w", err)
 	}
 	return pats, nil
+}
+
+func (m *userManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error {
+	if err := m.users.UpdateRole(ctx, userID, role); err != nil {
+		return fmt.Errorf("user manager: UpdateUserRole: %w", err)
+	}
+	return nil
 }
 
 func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
