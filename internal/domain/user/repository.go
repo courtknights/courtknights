@@ -21,4 +21,8 @@ type UserRepository interface {
 	// or updates name, email, and updated_at if it does.
 	// Returns the persisted User (with ID and timestamps populated).
 	Upsert(ctx context.Context, u *User) (*User, error)
+
+	// UpdateRole sets the role for the user with the given ID.
+	// Returns ckerrors.ErrUserNotFound if no user exists with that ID.
+	UpdateRole(ctx context.Context, id uuid.UUID, role Role) error
 }

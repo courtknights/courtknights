@@ -1,4 +1,4 @@
-package pats
+package users
 
 import (
 	"context"
@@ -84,153 +84,106 @@ func newTestHandler(mgr appauth.AuthManager) (*Handler, *echo.Echo) {
 	return NewHandler(mgr), echo.New()
 }
 
-func contextWithRole(e *echo.Echo, method, path string, body string, role string) (echo.Context, *httptest.ResponseRecorder) {
+func contextWithAuth(e *echo.Echo, method, path, body, role, sub, email string) (echo.Context, *httptest.ResponseRecorder) {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.Set(common.ContextKeyRole, string(role))
+	c.Set(common.ContextKeyRole, role)
+	c.Set(common.ContextKeySub, sub)
+	c.Set(common.ContextKeyEmail, email)
 	return c, rec
 }
 
-// ---- POST /api/v1/pats ----
+// ---- GET /api/v1/users/me ----
 
-func TestCreatePAT_AsAdmin_Returns201WithToken(t *testing.T) {
-	userID := uuid.New()
-	mgr := &mockAuthManager{}
-	mgr.On("CreatePAT", mock.Anything, userID, (*time.Time)(nil)).
-		Return("raw-pat-key", nil)
+func TestMe_Returns200WithUserProfile(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	userID := uuid.New().String()
+	c, rec := contextWithAuth(e, http.MethodGet, "/api/v1/users/me", "", string(user.RoleUser), userID, "alice@example.com")
 
-	h, e := newTestHandler(mgr)
-	body := `{"user_id":"` + userID.String() + `"}`
-	c, rec := contextWithRole(e, http.MethodPost, "/api/v1/pats", body, string(user.RoleAdmin))
-
-	err := h.createPAT(c)
+	err := h.me(c)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusCreated, rec.Code)
-	assert.Contains(t, rec.Body.String(), "raw-pat-key")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), userID)
+	assert.Contains(t, rec.Body.String(), "alice@example.com")
+	assert.Contains(t, rec.Body.String(), string(user.RoleUser))
 }
 
-func TestCreatePAT_AsNonAdmin_Returns403(t *testing.T) {
-	h, e := newTestHandler(&mockAuthManager{})
-	body := `{"user_id":"` + uuid.New().String() + `"}`
-	c, rec := contextWithRole(e, http.MethodPost, "/api/v1/pats", body, string(user.RoleUser))
+// ---- PUT /api/v1/users/:id/role ----
 
-	err := h.createPAT(c)
+func TestUpdateRole_AsAdmin_Returns200(t *testing.T) {
+	targetID := uuid.New()
+	mgr := &mockAuthManager{}
+	mgr.On("UpdateUserRole", mock.Anything, targetID, user.RoleUser).Return(nil)
+
+	h, e := newTestHandler(mgr)
+	body := `{"role":"user"}`
+	c, rec := contextWithAuth(e, http.MethodPut, "/api/v1/users/"+targetID.String()+"/role", body, string(user.RoleAdmin), uuid.New().String(), "admin@example.com")
+	c.SetParamNames("id")
+	c.SetParamValues(targetID.String())
+
+	err := h.updateRole(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), targetID.String())
+}
+
+func TestUpdateRole_AsNonAdmin_Returns403(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	targetID := uuid.New()
+	c, rec := contextWithAuth(e, http.MethodPut, "/api/v1/users/"+targetID.String()+"/role", `{"role":"admin"}`, string(user.RoleUser), uuid.New().String(), "user@example.com")
+	c.SetParamNames("id")
+	c.SetParamValues(targetID.String())
+
+	err := h.updateRole(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusForbidden, he.Code)
 	_ = rec
 }
 
-func TestCreatePAT_MissingUserID_Returns400(t *testing.T) {
+func TestUpdateRole_InvalidID_Returns400(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
-	c, rec := contextWithRole(e, http.MethodPost, "/api/v1/pats", `{}`, string(user.RoleAdmin))
+	c, rec := contextWithAuth(e, http.MethodPut, "/api/v1/users/bad-id/role", `{"role":"user"}`, string(user.RoleAdmin), uuid.New().String(), "admin@example.com")
+	c.SetParamNames("id")
+	c.SetParamValues("bad-id")
 
-	err := h.createPAT(c)
+	err := h.updateRole(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
 	_ = rec
 }
 
-func TestCreatePAT_InvalidUserID_Returns400(t *testing.T) {
+func TestUpdateRole_InvalidRole_Returns400(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
-	c, rec := contextWithRole(e, http.MethodPost, "/api/v1/pats", `{"user_id":"not-a-uuid"}`, string(user.RoleAdmin))
+	targetID := uuid.New()
+	c, rec := contextWithAuth(e, http.MethodPut, "/api/v1/users/"+targetID.String()+"/role", `{"role":"superuser"}`, string(user.RoleAdmin), uuid.New().String(), "admin@example.com")
+	c.SetParamNames("id")
+	c.SetParamValues(targetID.String())
 
-	err := h.createPAT(c)
+	err := h.updateRole(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
 	_ = rec
 }
 
-// ---- GET /api/v1/pats ----
-
-func TestListPATs_Returns200WithPATList(t *testing.T) {
-	now := time.Now()
-	pats := []*pat.PAT{
-		{ID: uuid.New(), KeyHash: "hash1", Salt: "salt1", CreatedAt: now},
-	}
+func TestUpdateRole_ManagerError_Returns500(t *testing.T) {
+	targetID := uuid.New()
 	mgr := &mockAuthManager{}
-	mgr.On("ListPATs", mock.Anything).Return(pats, nil)
+	mgr.On("UpdateUserRole", mock.Anything, targetID, user.RoleUser).Return(errors.New("db error"))
 
 	h, e := newTestHandler(mgr)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/pats", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.Set(common.ContextKeyRole, string(user.RoleUser))
+	body := `{"role":"user"}`
+	c, rec := contextWithAuth(e, http.MethodPut, "/api/v1/users/"+targetID.String()+"/role", body, string(user.RoleAdmin), uuid.New().String(), "admin@example.com")
+	c.SetParamNames("id")
+	c.SetParamValues(targetID.String())
 
-	err := h.listPATs(c)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
-
-func TestListPATs_ManagerError_Returns500(t *testing.T) {
-	mgr := &mockAuthManager{}
-	mgr.On("ListPATs", mock.Anything).Return(nil, errors.New("db error"))
-
-	h, e := newTestHandler(mgr)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/pats", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	err := h.listPATs(c)
+	err := h.updateRole(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
-	_ = rec
-}
-
-// ---- DELETE /api/v1/pats/:id ----
-
-func TestRevokePAT_AsAdmin_Returns204(t *testing.T) {
-	patID := uuid.New()
-	mgr := &mockAuthManager{}
-	mgr.On("RevokePAT", mock.Anything, patID).Return(nil)
-
-	h, e := newTestHandler(mgr)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pats/"+patID.String(), nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues(patID.String())
-	c.Set(common.ContextKeyRole, string(user.RoleAdmin))
-
-	err := h.revokePAT(c)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, rec.Code)
-}
-
-func TestRevokePAT_AsNonAdmin_Returns403(t *testing.T) {
-	h, e := newTestHandler(&mockAuthManager{})
-	patID := uuid.New()
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pats/"+patID.String(), nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues(patID.String())
-	c.Set(common.ContextKeyRole, string(user.RoleUser))
-
-	err := h.revokePAT(c)
-	var he *echo.HTTPError
-	require.ErrorAs(t, err, &he)
-	assert.Equal(t, http.StatusForbidden, he.Code)
-	_ = rec
-}
-
-func TestRevokePAT_InvalidID_Returns400(t *testing.T) {
-	h, e := newTestHandler(&mockAuthManager{})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pats/bad-id", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues("bad-id")
-	c.Set(common.ContextKeyRole, string(user.RoleAdmin))
-
-	err := h.revokePAT(c)
-	var he *echo.HTTPError
-	require.ErrorAs(t, err, &he)
-	assert.Equal(t, http.StatusBadRequest, he.Code)
 	_ = rec
 }

@@ -83,6 +83,20 @@ func (r *UserRepository) Upsert(ctx context.Context, u *user.User) (*user.User, 
 	return result, nil
 }
 
+// UpdateRole implements user.UserRepository.
+func (r *UserRepository) UpdateRole(ctx context.Context, id uuid.UUID, role user.Role) error {
+	const q = `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`
+
+	tag, err := r.db.Exec(ctx, q, role, id)
+	if err != nil {
+		return fmt.Errorf("postgres: UpdateRole: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("postgres: UpdateRole: %w", ckerrors.ErrUserNotFound)
+	}
+	return nil
+}
+
 // scanUser reads a user row from a pgx.Row.
 func scanUser(row pgx.Row) (*user.User, error) {
 	var u user.User

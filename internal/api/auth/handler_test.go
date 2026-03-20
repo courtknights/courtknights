@@ -67,6 +67,9 @@ func (m *mockAuthManager) ListPATs(ctx context.Context) ([]*pat.PAT, error) {
 	}
 	return args.Get(0).([]*pat.PAT), args.Error(1)
 }
+func (m *mockAuthManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error {
+	return m.Called(ctx, userID, role).Error(0)
+}
 func (m *mockAuthManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
 	args := m.Called(ctx, email, name, rawPAT)
 	return args.String(0), args.Error(1)
