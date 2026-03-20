@@ -18,6 +18,12 @@ const (
 	ContextKeyRole  = "role"
 )
 
+// IsAdmin reports whether the authenticated user in the context has the admin role.
+func IsAdmin(c echo.Context) bool {
+	role, _ := c.Get(ContextKeyRole).(string)
+	return role == "admin"
+}
+
 // JWTMiddleware returns an Echo middleware that validates the Bearer JWT and
 // sets sub, email, and role on the context. Returns 401 on any failure.
 func JWTMiddleware(jwt auth.JWTManager) echo.MiddlewareFunc {
