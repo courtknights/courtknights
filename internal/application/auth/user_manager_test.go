@@ -15,7 +15,7 @@ import (
 	"github.com/courtknights/courtknights/internal/domain/user"
 )
 
-func newUserManager(users *mockUserRepository, pats *mockPATRepository) *UserManager {
+func newUserManagerForTest(users *mockUserRepository, pats *mockPATRepository) UserManager {
 	return NewUserManager(users, pats)
 }
 
@@ -24,7 +24,7 @@ func newUserManager(users *mockUserRepository, pats *mockPATRepository) *UserMan
 func TestManager_ResolveByOAuth_CreatesUserOnFirstCall(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	expected := &user.User{ID: uuid.New(), Email: "alice@example.com", Name: "Alice", Role: user.RoleUser}
 	users.On("Upsert", context.Background(), &user.User{
@@ -41,7 +41,7 @@ func TestManager_ResolveByOAuth_CreatesUserOnFirstCall(t *testing.T) {
 func TestManager_ResolveByOAuth_ReturnsExistingUserOnSecondCall(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	existing := &user.User{ID: uuid.New(), Email: "bob@example.com", Name: "Bob", Role: user.RoleUser}
 	users.On("Upsert", context.Background(), &user.User{
@@ -60,7 +60,7 @@ func TestManager_ResolveByOAuth_ReturnsExistingUserOnSecondCall(t *testing.T) {
 func TestManager_ResolveByPAT_ReturnsUser_WhenKeyMatches(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	rawKey := "correct-raw-key"
 	salt, _ := generateSalt()
@@ -81,7 +81,7 @@ func TestManager_ResolveByPAT_ReturnsUser_WhenKeyMatches(t *testing.T) {
 func TestManager_ResolveByPAT_ReturnsErrInvalidPAT_WhenNoMatch(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	salt, _ := generateSalt()
 	storedPAT := &pat.PAT{ID: uuid.New(), KeyHash: hashKey("real-key", salt), Salt: salt}
@@ -96,7 +96,7 @@ func TestManager_ResolveByPAT_ReturnsErrInvalidPAT_WhenNoMatch(t *testing.T) {
 func TestManager_ResolveByPAT_ReturnsErrPATExpired_WhenExpired(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	rawKey := "some-key"
 	salt, _ := generateSalt()
@@ -120,7 +120,7 @@ func TestManager_ResolveByPAT_ReturnsErrPATExpired_WhenExpired(t *testing.T) {
 func TestManager_CreatePAT_ReturnsNonEmptyRawKey(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	userID := uuid.New()
 	patID := uuid.New()
@@ -140,7 +140,7 @@ func TestManager_CreatePAT_ReturnsNonEmptyRawKey(t *testing.T) {
 func TestManager_CreatePAT_StoredHashDiffersFromRawKey(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	userID := uuid.New()
 	patID := uuid.New()
@@ -163,7 +163,7 @@ func TestManager_CreatePAT_StoredHashDiffersFromRawKey(t *testing.T) {
 func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	patID := uuid.New()
 	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
@@ -181,7 +181,7 @@ func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 func TestManager_RevokePAT_CallsDelete(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
-	mgr := newUserManager(users, pats)
+	mgr := newUserManagerForTest(users, pats)
 
 	patID := uuid.New()
 	pats.On("Delete", context.Background(), patID).Return(nil)

@@ -3,35 +3,59 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
 )
 
 // AuthManager is the root manager for the authentication feature.
-// It composes UserManager, JWTManager, and OAuthManager to implement
-// all authentication use cases. It is the only auth component the Handler calls.
+// It is the single entry point for all auth Handlers — no Handler may call
+// a sub-manager directly.
 //
 // Rule: AuthManager calls other managers only — never repositories or
 // infrastructure adapters directly.
-type AuthManager struct {
-	user  *UserManager
-	jwt   *JWTManager
-	oauth *OAuthManager
+type AuthManager interface {
+	// OAuth2 redirect flow
+	OAuthRedirectURL(provider user.Provider, state string) (string, error)
+	OAuthCallback(ctx context.Context, provider user.Provider, code string) (string, error)
+
+	// Device Authorization Grant (RFC 8628)
+	DeviceInit(ctx context.Context, provider user.Provider) (*oauth2infra.DeviceAuthResponse, error)
+	DevicePoll(ctx context.Context, provider user.Provider, deviceCode string) (string, error)
+
+	// PAT exchange and JWT refresh
+	ExchangePAT(ctx context.Context, rawPAT string) (string, error)
+	RefreshJWT(ctx context.Context, tokenStr string) (string, error)
+
+	// PAT lifecycle (used by PAT management handler)
+	CreatePAT(ctx context.Context, userID uuid.UUID, expiresAt *time.Time) (string, error)
+	RevokePAT(ctx context.Context, id uuid.UUID) error
+	ListPATs(ctx context.Context) ([]*pat.PAT, error)
+
+	// Bootstrap
+	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error)
 }
 
-// NewAuthManager returns an AuthManager with the three required leaf managers.
-func NewAuthManager(user *UserManager, jwt *JWTManager, oauth *OAuthManager) *AuthManager {
-	return &AuthManager{user: user, jwt: jwt, oauth: oauth}
+type authManager struct {
+	user  UserManager
+	jwt   JWTManager
+	oauth OAuthManager
 }
 
-// OAuthRedirectURL returns the provider's authorisation URL for the redirect flow.
-func (m *AuthManager) OAuthRedirectURL(provider user.Provider, state string) (string, error) {
+// NewAuthManager returns an AuthManager composed of the three sub-managers.
+func NewAuthManager(u UserManager, j JWTManager, o OAuthManager) AuthManager {
+	return &authManager{user: u, jwt: j, oauth: o}
+}
+
+func (m *authManager) OAuthRedirectURL(provider user.Provider, state string) (string, error) {
 	return m.oauth.RedirectURL(provider, state)
 }
 
-// OAuthCallback exchanges a provider authorisation code for a signed JWT.
-func (m *AuthManager) OAuthCallback(ctx context.Context, provider user.Provider, code string) (string, error) {
+func (m *authManager) OAuthCallback(ctx context.Context, provider user.Provider, code string) (string, error) {
 	info, err := m.oauth.Exchange(ctx, provider, code)
 	if err != nil {
 		return "", fmt.Errorf("auth manager: OAuthCallback: %w", err)
@@ -43,13 +67,11 @@ func (m *AuthManager) OAuthCallback(ctx context.Context, provider user.Provider,
 	return m.jwt.Sign(u)
 }
 
-// DeviceInit initiates the Device Authorization Grant for the given provider.
-func (m *AuthManager) DeviceInit(ctx context.Context, provider user.Provider) (*oauth2infra.DeviceAuthResponse, error) {
+func (m *authManager) DeviceInit(ctx context.Context, provider user.Provider) (*oauth2infra.DeviceAuthResponse, error) {
 	return m.oauth.DeviceAuth(ctx, provider)
 }
 
-// DevicePoll polls for an authorised device token and returns a signed JWT.
-func (m *AuthManager) DevicePoll(ctx context.Context, provider user.Provider, deviceCode string) (string, error) {
+func (m *authManager) DevicePoll(ctx context.Context, provider user.Provider, deviceCode string) (string, error) {
 	info, err := m.oauth.DevicePoll(ctx, provider, deviceCode)
 	if err != nil {
 		return "", fmt.Errorf("auth manager: DevicePoll: %w", err)
@@ -61,8 +83,7 @@ func (m *AuthManager) DevicePoll(ctx context.Context, provider user.Provider, de
 	return m.jwt.Sign(u)
 }
 
-// ExchangePAT validates a raw PAT and returns a signed JWT.
-func (m *AuthManager) ExchangePAT(ctx context.Context, rawPAT string) (string, error) {
+func (m *authManager) ExchangePAT(ctx context.Context, rawPAT string) (string, error) {
 	u, err := m.user.ResolveByPAT(ctx, rawPAT)
 	if err != nil {
 		return "", fmt.Errorf("auth manager: ExchangePAT: %w", err)
@@ -70,8 +91,7 @@ func (m *AuthManager) ExchangePAT(ctx context.Context, rawPAT string) (string, e
 	return m.jwt.Sign(u)
 }
 
-// RefreshJWT validates the current JWT and issues a new one with a fresh expiry.
-func (m *AuthManager) RefreshJWT(ctx context.Context, tokenStr string) (string, error) {
+func (m *authManager) RefreshJWT(ctx context.Context, tokenStr string) (string, error) {
 	claims, err := m.jwt.Validate(tokenStr)
 	if err != nil {
 		return "", fmt.Errorf("auth manager: RefreshJWT: %w", err)
@@ -81,4 +101,20 @@ func (m *AuthManager) RefreshJWT(ctx context.Context, tokenStr string) (string, 
 		u.ID = id
 	}
 	return m.jwt.Sign(u)
+}
+
+func (m *authManager) CreatePAT(ctx context.Context, userID uuid.UUID, expiresAt *time.Time) (string, error) {
+	return m.user.CreatePAT(ctx, userID, expiresAt)
+}
+
+func (m *authManager) RevokePAT(ctx context.Context, id uuid.UUID) error {
+	return m.user.RevokePAT(ctx, id)
+}
+
+func (m *authManager) ListPATs(ctx context.Context) ([]*pat.PAT, error) {
+	return m.user.ListPATs(ctx)
+}
+
+func (m *authManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
+	return m.user.BootstrapAdmin(ctx, email, name, rawPAT)
 }

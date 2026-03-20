@@ -13,19 +13,23 @@ type jwtAdapter interface {
 	Validate(tokenStr string) (*jwtinfra.Claims, error)
 }
 
-// JWTManager encapsulates all JWT business logic.
+// JWTManager encapsulates all JWT operations.
 // It is the only application-layer component that talks to the JWT infrastructure adapter.
-type JWTManager struct {
+type JWTManager interface {
+	Sign(u *user.User) (string, error)
+	Validate(tokenStr string) (*jwtinfra.Claims, error)
+}
+
+type jwtManager struct {
 	adapter jwtAdapter
 }
 
 // NewJWTManager returns a JWTManager backed by the given adapter.
-func NewJWTManager(adapter jwtAdapter) *JWTManager {
-	return &JWTManager{adapter: adapter}
+func NewJWTManager(adapter jwtAdapter) JWTManager {
+	return &jwtManager{adapter: adapter}
 }
 
-// Sign issues a signed JWT for the given user.
-func (m *JWTManager) Sign(u *user.User) (string, error) {
+func (m *jwtManager) Sign(u *user.User) (string, error) {
 	token, err := m.adapter.Sign(u)
 	if err != nil {
 		return "", fmt.Errorf("jwt manager: sign: %w", err)
@@ -33,8 +37,7 @@ func (m *JWTManager) Sign(u *user.User) (string, error) {
 	return token, nil
 }
 
-// Validate parses and verifies a JWT string, returning its claims.
-func (m *JWTManager) Validate(tokenStr string) (*jwtinfra.Claims, error) {
+func (m *jwtManager) Validate(tokenStr string) (*jwtinfra.Claims, error) {
 	claims, err := m.adapter.Validate(tokenStr)
 	if err != nil {
 		return nil, fmt.Errorf("jwt manager: validate: %w", err)

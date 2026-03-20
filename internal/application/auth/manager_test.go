@@ -63,14 +63,14 @@ func (m *mockJWTAdapter) Validate(tokenStr string) (*jwtinfra.Claims, error) {
 	return args.Get(0).(*jwtinfra.Claims), args.Error(1)
 }
 
-// ---- builder ----
+// ---- builder: returns AuthManager interface ----
 
 func newTestAuthManager(
 	userRepo *mockUserRepository,
 	patRepo *mockPATRepository,
 	providers map[user.Provider]oauth2infra.Provider,
 	jwtAdapt *mockJWTAdapter,
-) *AuthManager {
+) AuthManager {
 	return NewAuthManager(
 		NewUserManager(userRepo, patRepo),
 		NewJWTManager(jwtAdapt),
@@ -231,9 +231,8 @@ func TestAuthManager_ExchangePAT_InvalidPAT_ReturnsErrInvalidPAT(t *testing.T) {
 func TestAuthManager_RefreshJWT_ValidToken_ReturnsNewJWT(t *testing.T) {
 	jwtAdapt := &mockJWTAdapter{}
 
-	userID := uuid.New()
 	claims := &jwtinfra.Claims{}
-	claims.Subject = userID.String()
+	claims.Subject = uuid.New().String()
 	claims.Email = "dave@example.com"
 	claims.Role = user.RoleUser
 

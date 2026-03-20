@@ -29,10 +29,11 @@ Every feature in `internal/` is structured in three layers:
 ┌──────────────────────────────────────────────────────┐
 │  Handler          (internal/api/<feature>/)           │
 │  HTTP boundary — decodes requests, encodes responses  │
-│  Calls: the feature's root Manager only               │
+│  Depends on: Manager interface only (never concrete)  │
 ├──────────────────────────────────────────────────────┤
 │  Manager          (internal/application/<feature>/)   │
 │  Business logic and orchestration                     │
+│  Exposes: a Go interface consumed by the Handler      │
 │  May call: Repositories and/or other Managers         │
 ├──────────────────────────────────────────────────────┤
 │  Repository       (internal/infrastructure/postgres/) │
@@ -43,106 +44,161 @@ Every feature in `internal/` is structured in three layers:
 
 ### Manager composition
 
-The Manager layer is the only layer with internal structure. A feature is
-implemented by one or more managers that form a tree:
+Every feature has exactly one **feature manager** (named after the feature,
+e.g. `AuthManager`). This is the only manager the Handler calls. It owns the
+feature's use cases and may be composed of one or more **sub-managers**, each
+responsible for a limited, well-defined concern.
 
-- **Leaf managers** focus on a single cohesive concern and call only
-  repositories **or** a single category of infrastructure adapter — never both
-  and never another manager.
-- **Root manager** owns the feature's use cases. It is injected with leaf
-  managers and composes their calls to implement each operation. It never calls
-  repositories or infrastructure adapters directly.
-
-The Handler always calls the **root manager** of the feature.
+A sub-manager may call repositories, infrastructure adapters, or other
+sub-managers. The only constraint is that **the Handler never calls a
+sub-manager directly** — all entry points go through the feature manager.
 
 ```
 Handler
-  └── AuthManager (root)
-        ├── UserManager  (leaf — calls UserRepository + PATRepository)
-        ├── JWTManager   (leaf — calls JWT infrastructure adapter)
-        └── OAuthManager (leaf — calls OAuth2 provider adapters)
+  └── AuthManager            (feature manager — one per feature)
+        ├── UserManager       (sub-manager — user/PAT business logic)
+        ├── JWTManager        (sub-manager — token signing and validation)
+        └── OAuthManager      (sub-manager — provider registry and flows)
+```
+
+Whether to introduce a sub-manager is a judgement call based on cohesion and
+size. A feature manager that handles everything in a single struct is
+acceptable for simple features. Sub-managers are introduced when a concern
+grows complex enough to deserve its own test surface and its own constructor.
+
+### Manager interfaces
+
+Every manager **must** define a Go interface in the same package as its
+implementation. The interface lists only the methods the Handler (or a
+composing manager) actually needs. The concrete struct satisfies the interface
+implicitly.
+
+Naming convention:
+
+| Artefact | Name | Example |
+|----------|------|---------|
+| Interface | `<Feature>Manager` | `AuthManager` |
+| Concrete struct | `<feature>Manager` (unexported) | `authManager` |
+| Constructor | `New<Feature>Manager(…) <Feature>Manager` | `NewAuthManager(…) AuthManager` |
+
+The constructor returns the **interface**, not the struct. This ensures that
+nothing outside the package can depend on the concrete type.
+
+The same convention applies to sub-managers: the feature manager holds a field
+of the sub-manager's interface type, never the concrete struct.
+
+```go
+// internal/application/auth/manager.go
+
+type AuthManager interface {
+    OAuthRedirectURL(provider user.Provider, state string) (string, error)
+    OAuthCallback(ctx context.Context, provider user.Provider, code string) (string, error)
+    DeviceInit(ctx context.Context, provider user.Provider) (*oauth2infra.DeviceAuthResponse, error)
+    DevicePoll(ctx context.Context, provider user.Provider, deviceCode string) (string, error)
+    ExchangePAT(ctx context.Context, rawPAT string) (string, error)
+    RefreshJWT(ctx context.Context, tokenStr string) (string, error)
+}
+
+type authManager struct { user UserManager; jwt JWTManager; oauth OAuthManager }
+
+func NewAuthManager(u UserManager, j JWTManager, o OAuthManager) AuthManager {
+    return &authManager{user: u, jwt: j, oauth: o}
+}
+```
+
+```go
+// internal/api/auth/handler.go
+
+type AuthHandler struct { manager auth.AuthManager }  // depends on interface only
 ```
 
 ### Layer rules
 
 #### Repository
-- Implements a domain interface (e.g. `user.UserRepository`).
+- Implements a domain interface (e.g. `user.UserRepository`) defined in
+  `internal/domain/`.
 - Returns domain entities or sentinel errors from `domain/ckerrors/`.
 - Contains **no business logic** — no if-statements that encode rules, only
   data mapping and SQL.
 - One repository per aggregate root.
 
-#### Manager (leaf)
-- Focuses on a single cohesive concern.
-- Calls repositories **or** one category of infrastructure adapter, never both.
-- Never calls another manager.
+#### Manager
+- Every manager defines a **Go interface** in the same package.
+- The constructor returns the interface — never the concrete struct.
+- The **feature manager** (`<Feature>Manager`) owns all use cases and is the
+  only entry point for the Handler.
+- **Sub-managers** (`<Concern>Manager`) encapsulate a specific, limited
+  responsibility and are injected into the feature manager as interfaces.
+- Any manager may call repositories, infrastructure adapters, or other
+  managers — always via injected interfaces, never concrete types.
 - Returns domain entities or wrapped sentinel errors.
-- Fully unit-testable via injected mock repositories/adapters.
-
-#### Manager (root)
-- Named after the feature (e.g. `AuthManager`).
-- Owns the feature's use cases — one method per use case.
-- Calls only leaf managers, never repositories or adapters directly.
-- Contains orchestration logic (sequencing, error mapping across managers).
-- Injected with its leaf managers via constructor.
+- Fully unit-testable: replace any dependency with a mock of its interface.
 
 #### Handler
 - Lives in `internal/api/<feature>/`.
-- Decodes HTTP request → calls root Manager → encodes HTTP response.
+- Holds a field of the **feature manager interface** type — never the concrete
+  struct.
+- Decodes HTTP request → calls the feature manager → encodes HTTP response.
 - Owns HTTP status codes, request validation, and response serialisation.
 - Contains **no business logic**.
-- Calls only the root Manager of its feature.
+- Mock the interface in handler tests — no application code instantiated.
 
 ### Dependency direction
 
 ```
-Handler → Manager (root) → Manager (leaf) → Repository
-                                           → Infrastructure adapter
+Handler → AuthManager (interface) ←── authManager (concrete)
+                                          ├── UserManager (interface) ←── userManager
+                                          ├── JWTManager  (interface) ←── jwtManager
+                                          └── OAuthManager(interface) ←── oauthManager
+                                                    │
+                                              Repository / Adapter
 ```
 
-Arrows point **inward only**. Inner layers are unaware of outer layers.
+Arrows point **inward only**. Every layer depends on abstractions (interfaces),
+never on concrete types from the adjacent layer.
 
 ### Infrastructure adapters
 
 Infrastructure adapters (JWT, OAuth2 providers, email, …) live in
-`internal/infrastructure/` and implement interfaces defined next to the leaf
-manager that uses them. This keeps the manager unit-testable without any
-external process.
+`internal/infrastructure/` and implement interfaces defined alongside the
+manager that uses them. This keeps managers unit-testable without any external
+process running.
 
 ### Package layout (authentication feature)
 
 ```
 internal/
   domain/
-    user/           user.go, repository.go
-    pat/            pat.go, repository.go
+    user/           user.go, repository.go   ← UserRepository interface
+    pat/            pat.go, repository.go    ← PATRepository interface
     ckerrors/       auth.go
 
   application/
     auth/
-      manager.go          ← AuthManager  (root: composes leaf managers)
-      user_manager.go     ← UserManager  (leaf: repos only)
-      jwt_manager.go      ← JWTManager   (leaf: JWT adapter only)
-      oauth_manager.go    ← OAuthManager (leaf: OAuth2 providers only)
+      manager.go          ← AuthManager interface + authManager struct
+      user_manager.go     ← UserManager interface + userManager struct
+      jwt_manager.go      ← JWTManager  interface + jwtManager struct
+      oauth_manager.go    ← OAuthManager interface + oauthManager struct
 
   infrastructure/
     postgres/
       user_repository.go  ← implements user.UserRepository
       pat_repository.go   ← implements pat.PATRepository
     jwt/
-      jwt.go              ← JWT infrastructure adapter
+      jwt.go              ← implements auth.jwtAdapter
     oauth2/
-      oauth2.go, google.go, github.go
+      oauth2.go           ← Provider interface (used by oauthManager)
+      google.go, github.go
 
   api/
     auth/
-      handler.go          ← AuthHandler (HTTP → AuthManager)
+      handler.go          ← AuthHandler { manager auth.AuthManager }
       routes.go
     pats/
-      handler.go          ← PATHandler  (HTTP → AuthManager)
+      handler.go          ← PATHandler  { manager auth.AuthManager }
       routes.go
     users/
-      handler.go          ← UserHandler (HTTP → AuthManager)
+      handler.go          ← UserHandler { manager auth.AuthManager }
       routes.go
     router.go
     common/
@@ -153,12 +209,13 @@ internal/
 
 | Violation | Example | Fix |
 |-----------|---------|-----|
-| Handler calls leaf manager directly | Handler calls `UserManager.ResolveByPAT` | Route through root `AuthManager` |
+| Handler depends on concrete manager | `handler.go` imports `*authManager` | Use `auth.AuthManager` interface |
+| Handler calls sub-manager directly | Handler holds `auth.UserManager` field | Route through `auth.AuthManager` |
 | Handler calls repository directly | Handler calls `UserRepository.FindByID` | Route through Manager |
-| Root manager calls repository directly | `AuthManager` calls `UserRepository.Upsert` | Delegate to `UserManager` |
-| Leaf manager calls another manager | `UserManager` calls `JWTManager.Sign` | Move to root manager |
-| Manager contains no logic — only delegates | Manager method is a single `return other.Method()` | Merge into caller or add real logic |
+| Constructor returns concrete struct | `NewAuthManager() *authManager` | Return `AuthManager` interface |
+| Manager field is concrete type | `struct { user *userManager }` | Use `UserManager` interface |
 | Business logic in Handler | Handler checks PAT expiry | Move to Manager |
+| Manager contains no logic — only delegates | Every method is `return other.Method()` | Merge into caller or add real logic |
 
 ---
 
@@ -166,23 +223,29 @@ internal/
 
 ### Positive
 - Three layers to understand instead of four — simpler mental model.
-- "Everything is a Manager" is a uniform abstraction.
-- Leaf managers are unit-testable without any infrastructure.
-- Root manager tests mock leaf managers — fast, no DB, no network.
-- Handler tests mock the root manager — isolated HTTP concerns.
-- Orchestration has a clear home: the root manager's use-case methods.
-- Adding a new use case = adding a method to the root manager.
+- "Everything is a Manager with an interface" is a uniform, learnable pattern.
+- Handler tests only need a mock of the `AuthManager` interface — no
+  application code instantiated, no DB, no network.
+- Sub-manager tests mock their dependencies via interfaces — fully isolated.
+- Every concrete type is hidden behind an interface — easy to swap
+  implementations (e.g. replace PostgreSQL repo with in-memory for tests).
+- Orchestration has a clear home: the feature manager's use-case methods.
+- Adding a new use case = adding a method to the interface + implementation.
 
 ### Negative
-- The distinction between root and leaf managers must be understood by every
-  contributor — it is not enforced by the type system.
-- If a feature has many use cases the root manager file can grow large.
+- Every manager requires both an interface and a struct — slightly more
+  boilerplate than a struct-only approach.
+- The decision of when to introduce a sub-manager is a judgement call — not
+  enforced by the type system.
+- If a feature has many use cases the feature manager interface can grow large.
 
 ### Mitigations
-- A clear naming convention (`<Feature>Manager` for root, `<Concern>Manager`
-  for leaf) signals the role without extra documentation.
-- Root manager methods should stay short (2–5 lines). If a method grows, the
-  logic belongs in a leaf manager.
+- Naming convention (`<Feature>Manager` interface / `<feature>Manager` struct)
+  is applied consistently — tools like `go doc` surface the interface first.
+- Feature manager methods should stay short (2–5 lines). If a method grows,
+  the logic belongs in a sub-manager.
+- Large interfaces can be split into focused sub-interfaces if a handler only
+  uses a subset of operations.
 
 ---
 
