@@ -288,3 +288,105 @@ func TestDeviceToken_MissingFields_Returns400(t *testing.T) {
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
 }
+
+// ---- POST /auth/token/pat ----
+
+func TestExchangePAT_ValidToken_Returns200WithJWT(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("ExchangePAT", mock.Anything, "raw-pat-token").
+		Return("signed-jwt", nil)
+
+	h, e := newTestHandler(mgr)
+	body := `{"token":"raw-pat-token"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.exchangePAT(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "signed-jwt")
+}
+
+func TestExchangePAT_InvalidToken_Returns401(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("ExchangePAT", mock.Anything, "bad-pat").
+		Return("", errors.New("invalid token"))
+
+	h, e := newTestHandler(mgr)
+	body := `{"token":"bad-pat"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.exchangePAT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusUnauthorized, he.Code)
+}
+
+func TestExchangePAT_MissingToken_Returns400(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.exchangePAT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+// ---- POST /auth/refresh ----
+
+func TestRefreshJWT_ValidToken_Returns200WithNewJWT(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("RefreshJWT", mock.Anything, "old-jwt").
+		Return("new-jwt", nil)
+
+	h, e := newTestHandler(mgr)
+	body := `{"token":"old-jwt"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.refreshJWT(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "new-jwt")
+}
+
+func TestRefreshJWT_ExpiredToken_Returns401(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("RefreshJWT", mock.Anything, "expired-jwt").
+		Return("", errors.New("token expired"))
+
+	h, e := newTestHandler(mgr)
+	body := `{"token":"expired-jwt"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.refreshJWT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusUnauthorized, he.Code)
+}
+
+func TestRefreshJWT_MissingToken_Returns400(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.refreshJWT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}

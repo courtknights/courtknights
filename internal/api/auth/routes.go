@@ -19,4 +19,6 @@ func (r *Routes) Register(g *echo.Group) {
 	g.GET("/:provider/callback", r.handler.oauthCallback)
 	g.POST("/device", r.handler.deviceAuth)
 	g.POST("/device/token", r.handler.deviceToken)
+	g.POST("/token/pat", r.handler.exchangePAT)
+	g.POST("/refresh", r.handler.refreshJWT)
 }

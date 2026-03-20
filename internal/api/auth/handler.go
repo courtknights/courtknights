@@ -113,6 +113,42 @@ func (h *Handler) deviceToken(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"token": token})
 }
 
+// exchangePAT trades a raw PAT for a signed JWT.
+// POST /auth/token/pat
+func (h *Handler) exchangePAT(c echo.Context) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := c.Bind(&req); err != nil || req.Token == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "token is required")
+	}
+
+	jwt, err := h.manager.ExchangePAT(c.Request().Context(), req.Token)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"token": jwt})
+}
+
+// refreshJWT validates the current JWT and issues a new one with a fresh expiry.
+// POST /auth/refresh
+func (h *Handler) refreshJWT(c echo.Context) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := c.Bind(&req); err != nil || req.Token == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "token is required")
+	}
+
+	newToken, err := h.manager.RefreshJWT(c.Request().Context(), req.Token)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"token": newToken})
+}
+
 // parseProvider converts a path parameter string to a user.Provider.
 func parseProvider(s string) (user.Provider, error) {
 	switch s {
