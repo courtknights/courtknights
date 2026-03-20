@@ -63,6 +63,56 @@ func (h *Handler) oauthCallback(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/?token="+token)
 }
 
+// deviceAuth initiates the Device Authorization Grant for the given provider.
+// POST /auth/device
+func (h *Handler) deviceAuth(c echo.Context) error {
+	var req struct {
+		Provider string `json:"provider"`
+	}
+	if err := c.Bind(&req); err != nil || req.Provider == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "provider is required")
+	}
+
+	provider, err := parseProvider(req.Provider)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	resp, err := h.manager.DeviceInit(c.Request().Context(), provider)
+	if err != nil {
+		return providerError(err)
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+// deviceToken polls for an authorised device token.
+// POST /auth/device/token
+func (h *Handler) deviceToken(c echo.Context) error {
+	var req struct {
+		Provider   string `json:"provider"`
+		DeviceCode string `json:"device_code"`
+	}
+	if err := c.Bind(&req); err != nil || req.Provider == "" || req.DeviceCode == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "provider and device_code are required")
+	}
+
+	provider, err := parseProvider(req.Provider)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	token, err := h.manager.DevicePoll(c.Request().Context(), provider, req.DeviceCode)
+	if err != nil {
+		if isAuthorizationPending(err) {
+			return c.JSON(http.StatusAccepted, map[string]string{"error": "authorization_pending"})
+		}
+		return echo.NewHTTPError(http.StatusUnauthorized, "authentication failed")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"token": token})
+}
+
 // parseProvider converts a path parameter string to a user.Provider.
 func parseProvider(s string) (user.Provider, error) {
 	switch s {

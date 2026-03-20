@@ -17,4 +17,6 @@ func NewRoutes(h *Handler) *Routes {
 func (r *Routes) Register(g *echo.Group) {
 	g.GET("/:provider", r.handler.redirectToProvider)
 	g.GET("/:provider/callback", r.handler.oauthCallback)
+	g.POST("/device", r.handler.deviceAuth)
+	g.POST("/device/token", r.handler.deviceToken)
 }
