@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,6 +197,93 @@ func TestOAuthCallback_MissingCode_Returns400(t *testing.T) {
 	c.SetParamValues("google")
 
 	err := h.oauthCallback(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+// ---- POST /auth/device ----
+
+func TestDeviceAuth_ValidProvider_Returns200WithUserCode(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DeviceInit", mock.Anything, user.ProviderGitHub).
+		Return(&oauth2infra.DeviceAuthResponse{
+			DeviceCode: "dev-code", UserCode: "ABCD-1234",
+			VerificationURI: "https://github.com/login/device",
+		}, nil)
+
+	h, e := newTestHandler(mgr)
+	body := `{"provider":"github"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/device", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.deviceAuth(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "ABCD-1234")
+}
+
+func TestDeviceAuth_MissingProvider_Returns400(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	req := httptest.NewRequest(http.MethodPost, "/auth/device", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.deviceAuth(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+// ---- POST /auth/device/token ----
+
+func TestDeviceToken_Pending_Returns202WithAuthorizationPending(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DevicePoll", mock.Anything, user.ProviderGitHub, "dev-code").
+		Return("", fmt.Errorf("%w", oauth2infra.ErrAuthorizationPending))
+
+	h, e := newTestHandler(mgr)
+	body := `{"provider":"github","device_code":"dev-code"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.deviceToken(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusAccepted, rec.Code)
+	assert.Contains(t, rec.Body.String(), "authorization_pending")
+}
+
+func TestDeviceToken_Authorised_Returns200WithJWT(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DevicePoll", mock.Anything, user.ProviderGitHub, "dev-code").
+		Return("device-jwt", nil)
+
+	h, e := newTestHandler(mgr)
+	body := `{"provider":"github","device_code":"dev-code"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.deviceToken(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "device-jwt")
+}
+
+func TestDeviceToken_MissingFields_Returns400(t *testing.T) {
+	h, e := newTestHandler(&mockAuthManager{})
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token", strings.NewReader(`{"provider":"github"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.deviceToken(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
