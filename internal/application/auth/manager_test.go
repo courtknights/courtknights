@@ -2,8 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -13,180 +14,246 @@ import (
 	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
+	jwtinfra "github.com/courtknights/courtknights/internal/infrastructure/jwt"
+	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
 )
 
-func newManager(users *mockUserRepository, pats *mockPATRepository) *Manager {
-	return NewManager(users, pats)
+// ---- mock OAuth2 provider (infrastructure level) ----
+
+type mockOAuth2Provider struct{ mock.Mock }
+
+func (m *mockOAuth2Provider) AuthCodeURL(state string) string {
+	return m.Called(state).String(0)
+}
+func (m *mockOAuth2Provider) Exchange(ctx context.Context, code string) (*oauth2infra.UserInfo, error) {
+	args := m.Called(ctx, code)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*oauth2infra.UserInfo), args.Error(1)
+}
+func (m *mockOAuth2Provider) DeviceAuth(ctx context.Context) (*oauth2infra.DeviceAuthResponse, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*oauth2infra.DeviceAuthResponse), args.Error(1)
+}
+func (m *mockOAuth2Provider) DevicePoll(ctx context.Context, deviceCode string) (*oauth2infra.UserInfo, error) {
+	args := m.Called(ctx, deviceCode)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*oauth2infra.UserInfo), args.Error(1)
 }
 
-// ---- ResolveByOAuth ----
+// ---- mock JWT adapter (infrastructure level) ----
 
-func TestManager_ResolveByOAuth_CreatesUserOnFirstCall(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
+type mockJWTAdapter struct{ mock.Mock }
 
-	expected := &user.User{ID: uuid.New(), Email: "alice@example.com", Name: "Alice", Role: user.RoleUser}
-	users.On("Upsert", context.Background(), &user.User{
-		Email: "alice@example.com", Name: "Alice",
-		Role: user.RoleUser, Provider: user.ProviderGoogle, ProviderID: "g-001",
-	}).Return(expected, nil)
+func (m *mockJWTAdapter) Sign(u *user.User) (string, error) {
+	args := m.Called(u)
+	return args.String(0), args.Error(1)
+}
+func (m *mockJWTAdapter) Validate(tokenStr string) (*jwtinfra.Claims, error) {
+	args := m.Called(tokenStr)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*jwtinfra.Claims), args.Error(1)
+}
 
-	got, err := mgr.ResolveByOAuth(context.Background(), user.ProviderGoogle, "g-001", "alice@example.com", "Alice")
+// ---- builder ----
+
+func newTestAuthManager(
+	userRepo *mockUserRepository,
+	patRepo *mockPATRepository,
+	providers map[user.Provider]oauth2infra.Provider,
+	jwtAdapt *mockJWTAdapter,
+) *AuthManager {
+	return NewAuthManager(
+		NewUserManager(userRepo, patRepo),
+		NewJWTManager(jwtAdapt),
+		NewOAuthManager(providers),
+	)
+}
+
+// ---- OAuthRedirectURL ----
+
+func TestAuthManager_OAuthRedirectURL_ReturnsURL(t *testing.T) {
+	prov := &mockOAuth2Provider{}
+	prov.On("AuthCodeURL", "state-123").Return("https://accounts.google.com/auth?state=state-123")
+
+	mgr := newTestAuthManager(
+		&mockUserRepository{}, &mockPATRepository{},
+		map[user.Provider]oauth2infra.Provider{user.ProviderGoogle: prov},
+		&mockJWTAdapter{},
+	)
+
+	url, err := mgr.OAuthRedirectURL(user.ProviderGoogle, "state-123")
 	require.NoError(t, err)
-	assert.Equal(t, expected.ID, got.ID)
-	users.AssertExpectations(t)
+	assert.Contains(t, url, "state-123")
 }
 
-func TestManager_ResolveByOAuth_ReturnsExistingUserOnSecondCall(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
+func TestAuthManager_OAuthRedirectURL_ErrWhenProviderNotConfigured(t *testing.T) {
+	mgr := newTestAuthManager(
+		&mockUserRepository{}, &mockPATRepository{},
+		map[user.Provider]oauth2infra.Provider{},
+		&mockJWTAdapter{},
+	)
+	_, err := mgr.OAuthRedirectURL(user.ProviderGoogle, "state")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrProviderNotConfigured)
+}
 
-	existing := &user.User{ID: uuid.New(), Email: "bob@example.com", Name: "Bob", Role: user.RoleUser}
-	users.On("Upsert", context.Background(), &user.User{
-		Email: "bob@example.com", Name: "Bob",
-		Role: user.RoleUser, Provider: user.ProviderGitHub, ProviderID: "gh-002",
-	}).Return(existing, nil).Twice()
+// ---- OAuthCallback ----
 
-	first, _ := mgr.ResolveByOAuth(context.Background(), user.ProviderGitHub, "gh-002", "bob@example.com", "Bob")
-	second, err := mgr.ResolveByOAuth(context.Background(), user.ProviderGitHub, "gh-002", "bob@example.com", "Bob")
+func TestAuthManager_OAuthCallback_ValidCode_ReturnsJWT(t *testing.T) {
+	userRepo := &mockUserRepository{}
+	patRepo := &mockPATRepository{}
+	prov := &mockOAuth2Provider{}
+	jwtAdapt := &mockJWTAdapter{}
+
+	resolved := &user.User{ID: uuid.New(), Email: "alice@example.com", Role: user.RoleUser}
+	prov.On("Exchange", mock.Anything, "valid-code").
+		Return(&oauth2infra.UserInfo{ProviderID: "g-1", Email: "alice@example.com", Name: "Alice"}, nil)
+	userRepo.On("Upsert", mock.Anything, mock.AnythingOfType("*user.User")).Return(resolved, nil)
+	jwtAdapt.On("Sign", resolved).Return("signed-jwt", nil)
+
+	mgr := newTestAuthManager(userRepo, patRepo,
+		map[user.Provider]oauth2infra.Provider{user.ProviderGoogle: prov}, jwtAdapt)
+
+	token, err := mgr.OAuthCallback(context.Background(), user.ProviderGoogle, "valid-code")
 	require.NoError(t, err)
-	assert.Equal(t, first.ID, second.ID)
+	assert.Equal(t, "signed-jwt", token)
 }
 
-// ---- ResolveByPAT ----
+func TestAuthManager_OAuthCallback_InvalidCode_ReturnsError(t *testing.T) {
+	prov := &mockOAuth2Provider{}
+	prov.On("Exchange", mock.Anything, "bad-code").Return(nil, errors.New("invalid_grant"))
 
-func TestManager_ResolveByPAT_ReturnsUser_WhenKeyMatches(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
+	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{},
+		map[user.Provider]oauth2infra.Provider{user.ProviderGoogle: prov}, &mockJWTAdapter{})
 
-	rawKey := "correct-raw-key"
+	_, err := mgr.OAuthCallback(context.Background(), user.ProviderGoogle, "bad-code")
+	require.Error(t, err)
+}
+
+// ---- DeviceInit ----
+
+func TestAuthManager_DeviceInit_ReturnsDeviceAuthResponse(t *testing.T) {
+	prov := &mockOAuth2Provider{}
+	expected := &oauth2infra.DeviceAuthResponse{
+		DeviceCode: "dev-code", UserCode: "ABCD-1234", VerificationURI: "https://github.com/login/device",
+	}
+	prov.On("DeviceAuth", mock.Anything).Return(expected, nil)
+
+	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{},
+		map[user.Provider]oauth2infra.Provider{user.ProviderGitHub: prov}, &mockJWTAdapter{})
+
+	resp, err := mgr.DeviceInit(context.Background(), user.ProviderGitHub)
+	require.NoError(t, err)
+	assert.Equal(t, "ABCD-1234", resp.UserCode)
+}
+
+// ---- DevicePoll ----
+
+func TestAuthManager_DevicePoll_Pending_ReturnsErrAuthorizationPending(t *testing.T) {
+	prov := &mockOAuth2Provider{}
+	prov.On("DevicePoll", mock.Anything, "dev-code").
+		Return(nil, fmt.Errorf("poll: %w", oauth2infra.ErrAuthorizationPending))
+
+	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{},
+		map[user.Provider]oauth2infra.Provider{user.ProviderGitHub: prov}, &mockJWTAdapter{})
+
+	_, err := mgr.DevicePoll(context.Background(), user.ProviderGitHub, "dev-code")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, oauth2infra.ErrAuthorizationPending)
+}
+
+func TestAuthManager_DevicePoll_Authorised_ReturnsJWT(t *testing.T) {
+	userRepo := &mockUserRepository{}
+	patRepo := &mockPATRepository{}
+	prov := &mockOAuth2Provider{}
+	jwtAdapt := &mockJWTAdapter{}
+
+	resolved := &user.User{ID: uuid.New(), Email: "bob@example.com", Role: user.RoleUser}
+	prov.On("DevicePoll", mock.Anything, "dev-code").
+		Return(&oauth2infra.UserInfo{ProviderID: "gh-42", Email: "bob@example.com", Name: "Bob"}, nil)
+	userRepo.On("Upsert", mock.Anything, mock.AnythingOfType("*user.User")).Return(resolved, nil)
+	jwtAdapt.On("Sign", resolved).Return("device-jwt", nil)
+
+	mgr := newTestAuthManager(userRepo, patRepo,
+		map[user.Provider]oauth2infra.Provider{user.ProviderGitHub: prov}, jwtAdapt)
+
+	token, err := mgr.DevicePoll(context.Background(), user.ProviderGitHub, "dev-code")
+	require.NoError(t, err)
+	assert.Equal(t, "device-jwt", token)
+}
+
+// ---- ExchangePAT ----
+
+func TestAuthManager_ExchangePAT_ValidPAT_ReturnsJWT(t *testing.T) {
+	userRepo := &mockUserRepository{}
+	patRepo := &mockPATRepository{}
+	jwtAdapt := &mockJWTAdapter{}
+
+	rawKey := "valid-pat-key"
 	salt, _ := generateSalt()
 	hash := hashKey(rawKey, salt)
 	patID := uuid.New()
+	linked := &user.User{ID: uuid.New(), Email: "carol@example.com", Role: user.RoleUser}
 
-	storedPAT := &pat.PAT{ID: patID, KeyHash: hash, Salt: salt}
-	linkedUser := &user.User{ID: uuid.New(), Email: "carol@example.com", Role: user.RoleUser}
+	patRepo.On("FindAll", mock.Anything).Return([]*pat.PAT{{ID: patID, KeyHash: hash, Salt: salt}}, nil)
+	userRepo.On("FindByProvider", mock.Anything, user.ProviderPAT, patID.String()).Return(linked, nil)
+	jwtAdapt.On("Sign", linked).Return("pat-jwt", nil)
 
-	pats.On("FindAll", context.Background()).Return([]*pat.PAT{storedPAT}, nil)
-	users.On("FindByProvider", context.Background(), user.ProviderPAT, patID.String()).Return(linkedUser, nil)
+	mgr := newTestAuthManager(userRepo, patRepo, map[user.Provider]oauth2infra.Provider{}, jwtAdapt)
 
-	got, err := mgr.ResolveByPAT(context.Background(), rawKey)
+	token, err := mgr.ExchangePAT(context.Background(), rawKey)
 	require.NoError(t, err)
-	assert.Equal(t, linkedUser.ID, got.ID)
+	assert.Equal(t, "pat-jwt", token)
 }
 
-func TestManager_ResolveByPAT_ReturnsErrInvalidPAT_WhenNoMatch(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
+func TestAuthManager_ExchangePAT_InvalidPAT_ReturnsErrInvalidPAT(t *testing.T) {
+	patRepo := &mockPATRepository{}
+	patRepo.On("FindAll", mock.Anything).Return([]*pat.PAT{}, nil)
 
-	salt, _ := generateSalt()
-	storedPAT := &pat.PAT{ID: uuid.New(), KeyHash: hashKey("real-key", salt), Salt: salt}
+	mgr := newTestAuthManager(&mockUserRepository{}, patRepo, map[user.Provider]oauth2infra.Provider{}, &mockJWTAdapter{})
 
-	pats.On("FindAll", context.Background()).Return([]*pat.PAT{storedPAT}, nil)
-
-	_, err := mgr.ResolveByPAT(context.Background(), "wrong-key")
+	_, err := mgr.ExchangePAT(context.Background(), "wrong-key")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ckerrors.ErrInvalidPAT)
 }
 
-func TestManager_ResolveByPAT_ReturnsErrPATExpired_WhenExpired(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
+// ---- RefreshJWT ----
 
-	rawKey := "some-key"
-	salt, _ := generateSalt()
-	past := time.Now().Add(-1 * time.Hour)
-	storedPAT := &pat.PAT{
-		ID:        uuid.New(),
-		KeyHash:   hashKey(rawKey, salt),
-		Salt:      salt,
-		ExpiresAt: &past,
-	}
+func TestAuthManager_RefreshJWT_ValidToken_ReturnsNewJWT(t *testing.T) {
+	jwtAdapt := &mockJWTAdapter{}
 
-	pats.On("FindAll", context.Background()).Return([]*pat.PAT{storedPAT}, nil)
+	userID := uuid.New()
+	claims := &jwtinfra.Claims{}
+	claims.Subject = userID.String()
+	claims.Email = "dave@example.com"
+	claims.Role = user.RoleUser
 
-	_, err := mgr.ResolveByPAT(context.Background(), rawKey)
+	jwtAdapt.On("Validate", "old-token").Return(claims, nil)
+	jwtAdapt.On("Sign", mock.AnythingOfType("*user.User")).Return("new-jwt", nil)
+
+	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt)
+
+	token, err := mgr.RefreshJWT(context.Background(), "old-token")
+	require.NoError(t, err)
+	assert.Equal(t, "new-jwt", token)
+}
+
+func TestAuthManager_RefreshJWT_ExpiredToken_ReturnsErrUnauthorized(t *testing.T) {
+	jwtAdapt := &mockJWTAdapter{}
+	jwtAdapt.On("Validate", "expired-token").Return(nil, fmt.Errorf("%w", ckerrors.ErrUnauthorized))
+
+	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt)
+
+	_, err := mgr.RefreshJWT(context.Background(), "expired-token")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ckerrors.ErrPATExpired)
-}
-
-// ---- CreatePAT ----
-
-func TestManager_CreatePAT_ReturnsNonEmptyRawKey(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
-
-	userID := uuid.New()
-	patID := uuid.New()
-	existingUser := &user.User{ID: userID, Email: "dave@example.com", Provider: user.ProviderPAT, ProviderID: "old"}
-
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Return(&pat.PAT{ID: patID, KeyHash: "h", Salt: "s"}, nil)
-	users.On("FindByID", context.Background(), userID).Return(existingUser, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
-		Return(existingUser, nil)
-
-	rawKey, err := mgr.CreatePAT(context.Background(), userID, nil)
-	require.NoError(t, err)
-	assert.NotEmpty(t, rawKey)
-}
-
-func TestManager_CreatePAT_StoredHashDiffersFromRawKey(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
-
-	userID := uuid.New()
-	patID := uuid.New()
-	existingUser := &user.User{ID: userID, Email: "eve@example.com", Provider: user.ProviderPAT}
-
-	var capturedPAT *pat.PAT
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Run(func(args mock.Arguments) { capturedPAT = args.Get(1).(*pat.PAT) }).
-		Return(&pat.PAT{ID: patID, KeyHash: "h", Salt: "s"}, nil)
-	users.On("FindByID", context.Background(), userID).Return(existingUser, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).Return(existingUser, nil)
-
-	rawKey, err := mgr.CreatePAT(context.Background(), userID, nil)
-	require.NoError(t, err)
-	assert.NotEqual(t, rawKey, capturedPAT.KeyHash, "stored hash must differ from raw key")
-}
-
-// ---- BootstrapAdmin ----
-
-func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
-
-	patID := uuid.New()
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Return(&pat.PAT{ID: patID}, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
-		Return(&user.User{ID: uuid.New(), Role: user.RoleAdmin}, nil)
-
-	rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
-	require.NoError(t, err)
-	assert.Equal(t, "bootstrap-secret", rawPAT)
-	users.AssertExpectations(t)
-	pats.AssertExpectations(t)
-}
-
-func TestManager_RevokePAT_CallsDelete(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newManager(users, pats)
-
-	patID := uuid.New()
-	pats.On("Delete", context.Background(), patID).Return(nil)
-
-	err := mgr.RevokePAT(context.Background(), patID)
-	require.NoError(t, err)
-	pats.AssertExpectations(t)
+	assert.ErrorIs(t, err, ckerrors.ErrUnauthorized)
 }
