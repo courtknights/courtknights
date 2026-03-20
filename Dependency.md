@@ -17,11 +17,4 @@ Format: **Name** | **Purpose** | **License**
 | `github.com/labstack/echo/v4` | HTTP API framework — routing, middleware, request/response handling (ADR-001) | MIT |
 | `github.com/jackc/pgx/v5` | PostgreSQL driver and connection pool (ADR-003) | MIT |
 | `github.com/testcontainers/testcontainers-go` | Integration test containers — spins up real PostgreSQL (ADR-004) | MIT |
-
----
-
-## To be added (approved in spec)
-
-| Name | Purpose | License | Approved in |
-
-| `github.com/spf13/cobra` | CLI framework (ADR-002) | Apache-2.0 | `docs/decisions/ADR-002_cli-cobra-viper.md` |
+| `github.com/spf13/cobra` | CLI framework — Cobra root command for the server entrypoint (ADR-002) | Apache-2.0 |

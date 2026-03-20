@@ -41,6 +41,11 @@ func (m *mockUserRepository) UpdateRole(ctx context.Context, id uuid.UUID, role 
 	return m.Called(ctx, id, role).Error(0)
 }
 
+func (m *mockUserRepository) CountAll(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // mockPATRepository is a testify mock for pat.PATRepository.
 type mockPATRepository struct{ mock.Mock }
 

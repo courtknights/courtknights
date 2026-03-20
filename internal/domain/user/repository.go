@@ -25,4 +25,7 @@ type UserRepository interface {
 	// UpdateRole sets the role for the user with the given ID.
 	// Returns ckerrors.ErrUserNotFound if no user exists with that ID.
 	UpdateRole(ctx context.Context, id uuid.UUID, role Role) error
+
+	// CountAll returns the total number of users in the store.
+	CountAll(ctx context.Context) (int64, error)
 }

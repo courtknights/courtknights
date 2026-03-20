@@ -166,6 +166,7 @@ func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 	mgr := newUserManagerForTest(users, pats)
 
 	patID := uuid.New()
+	users.On("CountAll", context.Background()).Return(int64(0), nil)
 	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
 		Return(&pat.PAT{ID: patID}, nil)
 	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
@@ -176,6 +177,21 @@ func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 	assert.Equal(t, "bootstrap-secret", rawPAT)
 	users.AssertExpectations(t)
 	pats.AssertExpectations(t)
+}
+
+func TestManager_BootstrapAdmin_IsNoOpWhenUsersExist(t *testing.T) {
+	users := &mockUserRepository{}
+	pats := &mockPATRepository{}
+	mgr := newUserManagerForTest(users, pats)
+
+	users.On("CountAll", context.Background()).Return(int64(1), nil)
+
+	rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
+	require.NoError(t, err)
+	assert.Empty(t, rawPAT)
+	// Save and Upsert must NOT be called
+	pats.AssertNotCalled(t, "Save")
+	users.AssertNotCalled(t, "Upsert")
 }
 
 func TestManager_RevokePAT_CallsDelete(t *testing.T) {
