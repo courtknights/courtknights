@@ -36,11 +36,11 @@ func registerFlags(cmd *cobra.Command, v *viper.Viper) {
 	_ = v.BindPFlag("server.port", f.Lookup("port"))
 
 	// Database
-	f.String("db-url", "", "PostgreSQL connection URL (COURTKNIGHTS_DATABASE_URL)")
+	f.String("db-url", "postgres://courtknights:courtknights@localhost:5432/courtknights", "PostgreSQL connection URL (COURTKNIGHTS_DATABASE_URL)")
 	_ = v.BindPFlag("database.url", f.Lookup("db-url"))
 
 	// JWT
-	f.String("jwt-secret", "", "JWT signing secret (COURTKNIGHTS_JWT_SECRET)")
+	f.String("jwt-secret", "dev-secret-change-in-production", "JWT signing secret (COURTKNIGHTS_JWT_SECRET)")
 	_ = v.BindPFlag("jwt.secret", f.Lookup("jwt-secret"))
 
 	f.Duration("jwt-expiry", time.Hour, "JWT token lifetime (COURTKNIGHTS_JWT_EXPIRY)")

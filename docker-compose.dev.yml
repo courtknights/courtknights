@@ -1,0 +1,74 @@
+# Local development stack for CourtKnights.
+#
+# Starts:
+#   - postgres   — PostgreSQL 16 on port 5432
+#   - oauth-mock — mock OAuth2 server (navikt/mock-oauth2-server) on port 8090
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down -v   # stop and wipe volumes
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: courtknights
+      POSTGRES_PASSWORD: courtknights
+      POSTGRES_DB: courtknights
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtknights"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  oauth-mock:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    ports:
+      - "8090:8080"
+    environment:
+      # Serve all issuers under http://localhost:8090
+      SERVER_PORT: "8080"
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": true,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [
+            {
+              "issuerId": "google",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "scope",
+                  "match": ".*",
+                  "claims": {
+                    "sub": "dev-user-google",
+                    "email": "dev@example.com",
+                    "name": "Dev User"
+                  }
+                }
+              ]
+            },
+            {
+              "issuerId": "github",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "scope",
+                  "match": ".*",
+                  "claims": {
+                    "sub": "dev-user-github",
+                    "email": "dev@example.com",
+                    "name": "Dev User"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+
+volumes:
+  postgres_data:
