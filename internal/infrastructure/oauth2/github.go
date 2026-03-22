@@ -41,7 +41,18 @@ func NewGitHub(cfg GitHubConfig, httpClient *http.Client) *GitHubProvider {
 			ClientSecret: cfg.ClientSecret,
 			RedirectURL:  cfg.RedirectURL,
 			Scopes:       []string{"read:user", "user:email"},
-			Endpoint:     github.Endpoint,
+			// Use AuthStyleInParams so client_id and client_secret are sent
+			// as form body parameters on every request. AuthStyleAutoDetect
+			// (the default) tries Basic-Auth first, which most mock servers
+			// and GitHub's own device-flow endpoint do not accept.
+			// DeviceAuthURL is not present in github.Endpoint, so we set it
+			// explicitly following GitHub's device flow documentation.
+			Endpoint: oauth2.Endpoint{
+				AuthURL:       github.Endpoint.AuthURL,
+				TokenURL:      github.Endpoint.TokenURL,
+				DeviceAuthURL: "https://github.com/login/device/code",
+				AuthStyle:     oauth2.AuthStyleInParams,
+			},
 		},
 		httpClient: httpClient,
 	}
