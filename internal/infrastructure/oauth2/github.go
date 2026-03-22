@@ -21,6 +21,15 @@ type GitHubConfig struct {
 	ClientSecret string
 	// RedirectURL is the callback URL registered in the GitHub OAuth App.
 	RedirectURL string
+	// AuthURL overrides GitHub's authorization endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	AuthURL string
+	// TokenURL overrides GitHub's token endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	TokenURL string
+	// DeviceAuthURL overrides GitHub's device authorization endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	DeviceAuthURL string
 }
 
 // GitHubProvider implements Provider for GitHub OAuth2.
@@ -35,13 +44,35 @@ func NewGitHub(cfg GitHubConfig, httpClient *http.Client) *GitHubProvider {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	// Use AuthStyleInParams so client_id and client_secret are sent as form
+	// body parameters on every request. AuthStyleAutoDetect (the default)
+	// tries Basic-Auth first, which most mock servers and GitHub's own
+	// device-flow endpoint do not accept.
+	// DeviceAuthURL is not present in github.Endpoint, so we set it
+	// explicitly following GitHub's device flow documentation.
+	endpoint := oauth2.Endpoint{
+		AuthURL:       github.Endpoint.AuthURL,
+		TokenURL:      github.Endpoint.TokenURL,
+		DeviceAuthURL: "https://github.com/login/device/code",
+		AuthStyle:     oauth2.AuthStyleInParams,
+	}
+	if cfg.AuthURL != "" {
+		endpoint.AuthURL = cfg.AuthURL
+	}
+	if cfg.TokenURL != "" {
+		endpoint.TokenURL = cfg.TokenURL
+	}
+	if cfg.DeviceAuthURL != "" {
+		endpoint.DeviceAuthURL = cfg.DeviceAuthURL
+	}
+
 	return &GitHubProvider{
 		cfg: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
 			RedirectURL:  cfg.RedirectURL,
 			Scopes:       []string{"read:user", "user:email"},
-			Endpoint:     github.Endpoint,
+			Endpoint:     endpoint,
 		},
 		httpClient: httpClient,
 	}

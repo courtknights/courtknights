@@ -21,6 +21,15 @@ type GoogleConfig struct {
 	ClientSecret string
 	// RedirectURL is the callback URL registered in Google Cloud Console.
 	RedirectURL string
+	// AuthURL overrides Google's authorization endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	AuthURL string
+	// TokenURL overrides Google's token endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	TokenURL string
+	// DeviceAuthURL overrides Google's device authorization endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	DeviceAuthURL string
 }
 
 // GoogleProvider implements Provider for Google OAuth2.
@@ -35,13 +44,29 @@ func NewGoogle(cfg GoogleConfig, httpClient *http.Client) *GoogleProvider {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	endpoint := oauth2.Endpoint{
+		AuthURL:       google.Endpoint.AuthURL,
+		TokenURL:      google.Endpoint.TokenURL,
+		DeviceAuthURL: google.Endpoint.DeviceAuthURL,
+		AuthStyle:     google.Endpoint.AuthStyle,
+	}
+	if cfg.AuthURL != "" {
+		endpoint.AuthURL = cfg.AuthURL
+	}
+	if cfg.TokenURL != "" {
+		endpoint.TokenURL = cfg.TokenURL
+	}
+	if cfg.DeviceAuthURL != "" {
+		endpoint.DeviceAuthURL = cfg.DeviceAuthURL
+	}
+
 	return &GoogleProvider{
 		cfg: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
 			RedirectURL:  cfg.RedirectURL,
 			Scopes:       []string{"openid", "email", "profile"},
-			Endpoint:     google.Endpoint,
+			Endpoint:     endpoint,
 		},
 		httpClient: httpClient,
 	}

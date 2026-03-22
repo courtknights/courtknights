@@ -267,6 +267,42 @@ func TestPATRepository_FindAll_ReturnsAll(t *testing.T) {
 	}
 }
 
+func TestUserRepository_CountAll_ReturnsZeroOnEmptyDB(t *testing.T) {
+	truncate(t)
+	repo := NewUserRepository(testDB)
+
+	n, err := repo.CountAll(context.Background())
+	if err != nil {
+		t.Fatalf("CountAll: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected 0, got %d", n)
+	}
+}
+
+func TestUserRepository_CountAll_ReturnsCorrectCount(t *testing.T) {
+	truncate(t)
+	repo := NewUserRepository(testDB)
+
+	for i := range 3 {
+		_, err := repo.Upsert(context.Background(), &user.User{
+			Email: fmt.Sprintf("user%d@example.com", i), Name: fmt.Sprintf("User%d", i),
+			Role: user.RoleUser, Provider: user.ProviderGoogle, ProviderID: fmt.Sprintf("g-%d", i),
+		})
+		if err != nil {
+			t.Fatalf("Upsert %d: %v", i, err)
+		}
+	}
+
+	n, err := repo.CountAll(context.Background())
+	if err != nil {
+		t.Fatalf("CountAll: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("expected 3, got %d", n)
+	}
+}
+
 func TestPATRepository_Save_WithExpiry(t *testing.T) {
 	truncate(t)
 	repo := NewPATRepository(testDB)

@@ -135,6 +135,14 @@ func (m *userManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role
 }
 
 func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
+	count, err := m.users.CountAll(ctx)
+	if err != nil {
+		return "", fmt.Errorf("user manager: BootstrapAdmin: count users: %w", err)
+	}
+	if count > 0 {
+		return "", nil
+	}
+
 	salt, err := generateSalt()
 	if err != nil {
 		return "", fmt.Errorf("user manager: BootstrapAdmin: generate salt: %w", err)

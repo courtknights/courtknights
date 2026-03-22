@@ -16,8 +16,8 @@ Use **[Cobra](https://github.com/spf13/cobra)** for the CLI layer and **[Viper](
 
 - Every application entrypoint (`cmd/`) exposes a Cobra root command.
 - All configuration parameters support three sources, resolved in this priority order:
-  1. **Environment variable** (highest priority)
-  2. **CLI flag**
+  1. **CLI flag** (highest priority)
+  2. **Environment variable**
   3. **Default value** — set to sensible local values to enable quick testing without additional setup
 - Viper binds flags, environment variables, and defaults in a single configuration layer.
 

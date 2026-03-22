@@ -83,6 +83,15 @@ func (r *UserRepository) Upsert(ctx context.Context, u *user.User) (*user.User, 
 	return result, nil
 }
 
+// CountAll implements user.UserRepository.
+func (r *UserRepository) CountAll(ctx context.Context) (int64, error) {
+	var n int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("postgres: CountAll: %w", err)
+	}
+	return n, nil
+}
+
 // UpdateRole implements user.UserRepository.
 func (r *UserRepository) UpdateRole(ctx context.Context, id uuid.UUID, role user.Role) error {
 	const q = `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`
