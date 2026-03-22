@@ -9,8 +9,35 @@ courtknights-api [flags]
 ```
 
 Every flag can also be set via its corresponding environment variable.
-Environment variables take precedence over flag defaults; explicit CLI flags
-take precedence over environment variables.
+CLI flags take precedence over environment variables; environment variables
+take precedence over flag defaults.
+
+---
+
+## API endpoints
+
+### Public — no authentication required
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/auth/:provider` | Redirect to the OAuth2 provider login page (`provider`: `google` \| `github`) |
+| `GET` | `/auth/:provider/callback` | OAuth2 authorization code callback |
+| `POST` | `/auth/device` | Start a device authorization flow (CLI login) |
+| `POST` | `/auth/device/token` | Poll for a device flow token |
+| `POST` | `/auth/token/pat` | Exchange a Personal Access Token for a JWT |
+| `POST` | `/auth/refresh` | Refresh an existing JWT |
+
+### Protected — `Authorization: Bearer <jwt>` required
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/users/me` | Return the authenticated user's profile |
+| `PUT` | `/api/v1/users/:id/role` | Update a user's role (admin only) |
+| `POST` | `/api/v1/pats` | Create a Personal Access Token |
+| `GET` | `/api/v1/pats` | List the authenticated user's Personal Access Tokens |
+| `DELETE` | `/api/v1/pats/:id` | Revoke a Personal Access Token |
+
+---
 
 ## Configuration reference
 
@@ -42,9 +69,12 @@ take precedence over environment variables.
 |------|----------------------|---------|-------------|
 | `--google-client-id` | `COURTKNIGHTS_GOOGLE_CLIENT_ID` | _(empty)_ | Google OAuth2 client ID |
 | `--google-client-secret` | `COURTKNIGHTS_GOOGLE_CLIENT_SECRET` | _(empty)_ | Google OAuth2 client secret |
-| `--google-redirect-url` | `COURTKNIGHTS_GOOGLE_REDIRECT_URL` | _(empty)_ | Google OAuth2 redirect URL |
+| `--google-redirect-url` | `COURTKNIGHTS_GOOGLE_REDIRECT_URL` | _(empty)_ | Callback URL registered in Google Cloud Console |
+| `--google-auth-url` | `COURTKNIGHTS_GOOGLE_AUTH_URL` | _(Google production URL)_ | Override authorization endpoint — use for local mocks |
+| `--google-token-url` | `COURTKNIGHTS_GOOGLE_TOKEN_URL` | _(Google production URL)_ | Override token endpoint — use for local mocks |
+| `--google-device-auth-url` | `COURTKNIGHTS_GOOGLE_DEVICE_AUTH_URL` | _(Google production URL)_ | Override device authorization endpoint — use for local mocks |
 
-When `--google-client-id` is empty the Google provider is disabled.
+When `--google-client-id` is empty the Google provider is disabled and returns `501`.
 
 ### GitHub OAuth2
 
@@ -52,9 +82,12 @@ When `--google-client-id` is empty the Google provider is disabled.
 |------|----------------------|---------|-------------|
 | `--github-client-id` | `COURTKNIGHTS_GITHUB_CLIENT_ID` | _(empty)_ | GitHub OAuth2 client ID |
 | `--github-client-secret` | `COURTKNIGHTS_GITHUB_CLIENT_SECRET` | _(empty)_ | GitHub OAuth2 client secret |
-| `--github-redirect-url` | `COURTKNIGHTS_GITHUB_REDIRECT_URL` | _(empty)_ | GitHub OAuth2 redirect URL |
+| `--github-redirect-url` | `COURTKNIGHTS_GITHUB_REDIRECT_URL` | _(empty)_ | Callback URL registered in the GitHub OAuth App |
+| `--github-auth-url` | `COURTKNIGHTS_GITHUB_AUTH_URL` | _(GitHub production URL)_ | Override authorization endpoint — use for local mocks |
+| `--github-token-url` | `COURTKNIGHTS_GITHUB_TOKEN_URL` | _(GitHub production URL)_ | Override token endpoint — use for local mocks |
+| `--github-device-auth-url` | `COURTKNIGHTS_GITHUB_DEVICE_AUTH_URL` | _(GitHub production URL)_ | Override device authorization endpoint — use for local mocks |
 
-When `--github-client-id` is empty the GitHub provider is disabled.
+When `--github-client-id` is empty the GitHub provider is disabled and returns `501`.
 
 ### Bootstrap admin
 
@@ -96,49 +129,56 @@ docker compose -f docker-compose.dev.yml ps
 ### Step 2 — apply migrations
 
 ```sh
-# example using golang-migrate:
-migrate -path db/migrations -database "postgres://courtknights:courtknights@localhost:5432/courtknights?sslmode=disable" up
+migrate -path db/migrations \
+  -database "postgres://courtknights:courtknights@localhost:5432/courtknights?sslmode=disable" \
+  up
 ```
 
 ### Step 3 — run the server
 
-All defaults point at the Docker stack, so a bare invocation is enough:
+Point the OAuth2 endpoint overrides at the local mock so the server redirects
+to `localhost:8090` instead of the real Google/GitHub servers:
 
 ```sh
 make build
-./build/courtknights-api
-```
-
-To enable the OAuth mock providers, point the redirect URLs at the mock server.
-The mock exposes one issuer per path segment (`/google`, `/github`):
-
-```sh
 ./build/courtknights-api \
-  --google-client-id     mock-client \
-  --google-client-secret mock-secret \
-  --google-redirect-url  http://localhost:8080/auth/google/callback \
-  --github-client-id     mock-client \
-  --github-client-secret mock-secret \
-  --github-redirect-url  http://localhost:8080/auth/github/callback
+  --google-client-id       mock-client \
+  --google-client-secret   mock-secret \
+  --google-redirect-url    http://localhost:8080/auth/google/callback \
+  --google-auth-url        http://localhost:8090/google/authorize \
+  --google-token-url       http://localhost:8090/google/token \
+  --github-client-id       mock-client \
+  --github-client-secret   mock-secret \
+  --github-redirect-url    http://localhost:8080/auth/github/callback \
+  --github-auth-url        http://localhost:8090/github/authorize \
+  --github-token-url       http://localhost:8090/github/token
 ```
 
-The mock OAuth2 server authorization endpoint (interactive login UI):
+### Step 4 — log in via the browser
+
+Open the authorization URL for the provider you want to test.
+The server handles the redirect — go through **our server**, not the mock directly:
+
+```
+http://localhost:8080/auth/google
+http://localhost:8080/auth/github
+```
+
+The server redirects to the mock's interactive login UI. After login the mock
+redirects back to the callback URL and the server returns a JWT.
+
+Mock endpoints (for reference only — do not call these directly):
 
 ```
 http://localhost:8090/google/authorize
-http://localhost:8090/github/authorize
-```
-
-Token and JWKS endpoints (for reference):
-
-```
 http://localhost:8090/google/token
 http://localhost:8090/google/jwks
+http://localhost:8090/github/authorize
 http://localhost:8090/github/token
 http://localhost:8090/github/jwks
 ```
 
-### Step 4 — bootstrap an admin user (optional)
+### Step 5 — bootstrap an admin user (optional)
 
 ```sh
 ./build/courtknights-api \
@@ -147,8 +187,8 @@ http://localhost:8090/github/jwks
   --bootstrap-pat   my-dev-pat
 ```
 
-Use the PAT value directly in the `Authorization: Bearer <pat>` header for
-authenticated requests during development.
+The PAT can then be used directly in the `Authorization: Bearer <pat>` header,
+or exchanged for a JWT via `POST /auth/token/pat`.
 
 ### Tear down
 
