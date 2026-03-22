@@ -75,17 +75,23 @@ func buildProviders(cfg Config) map[domainuser.Provider]oauth2.Provider {
 
 	if cfg.Google.ClientID != "" {
 		providers[domainuser.ProviderGoogle] = oauth2.NewGoogle(oauth2.GoogleConfig{
-			ClientID:     cfg.Google.ClientID,
-			ClientSecret: cfg.Google.ClientSecret,
-			RedirectURL:  cfg.Google.RedirectURL,
+			ClientID:      cfg.Google.ClientID,
+			ClientSecret:  cfg.Google.ClientSecret,
+			RedirectURL:   cfg.Google.RedirectURL,
+			AuthURL:       cfg.Google.AuthURL,
+			TokenURL:      cfg.Google.TokenURL,
+			DeviceAuthURL: cfg.Google.DeviceAuthURL,
 		}, nil)
 	}
 
 	if cfg.GitHub.ClientID != "" {
 		providers[domainuser.ProviderGitHub] = oauth2.NewGitHub(oauth2.GitHubConfig{
-			ClientID:     cfg.GitHub.ClientID,
-			ClientSecret: cfg.GitHub.ClientSecret,
-			RedirectURL:  cfg.GitHub.RedirectURL,
+			ClientID:      cfg.GitHub.ClientID,
+			ClientSecret:  cfg.GitHub.ClientSecret,
+			RedirectURL:   cfg.GitHub.RedirectURL,
+			AuthURL:       cfg.GitHub.AuthURL,
+			TokenURL:      cfg.GitHub.TokenURL,
+			DeviceAuthURL: cfg.GitHub.DeviceAuthURL,
 		}, nil)
 	}
 

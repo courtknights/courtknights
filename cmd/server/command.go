@@ -56,6 +56,15 @@ func registerFlags(cmd *cobra.Command, v *viper.Viper) {
 	f.String("google-redirect-url", "", "Google OAuth2 redirect URL (COURTKNIGHTS_GOOGLE_REDIRECT_URL)")
 	_ = v.BindPFlag("google.redirect_url", f.Lookup("google-redirect-url"))
 
+	f.String("google-auth-url", "", "Override Google OAuth2 authorization URL — use for local mocks (COURTKNIGHTS_GOOGLE_AUTH_URL)")
+	_ = v.BindPFlag("google.auth_url", f.Lookup("google-auth-url"))
+
+	f.String("google-token-url", "", "Override Google OAuth2 token URL — use for local mocks (COURTKNIGHTS_GOOGLE_TOKEN_URL)")
+	_ = v.BindPFlag("google.token_url", f.Lookup("google-token-url"))
+
+	f.String("google-device-auth-url", "", "Override Google OAuth2 device auth URL — use for local mocks (COURTKNIGHTS_GOOGLE_DEVICE_AUTH_URL)")
+	_ = v.BindPFlag("google.device_auth_url", f.Lookup("google-device-auth-url"))
+
 	// GitHub OAuth2
 	f.String("github-client-id", "", "GitHub OAuth2 client ID (COURTKNIGHTS_GITHUB_CLIENT_ID)")
 	_ = v.BindPFlag("github.client_id", f.Lookup("github-client-id"))
@@ -65,6 +74,15 @@ func registerFlags(cmd *cobra.Command, v *viper.Viper) {
 
 	f.String("github-redirect-url", "", "GitHub OAuth2 redirect URL (COURTKNIGHTS_GITHUB_REDIRECT_URL)")
 	_ = v.BindPFlag("github.redirect_url", f.Lookup("github-redirect-url"))
+
+	f.String("github-auth-url", "", "Override GitHub OAuth2 authorization URL — use for local mocks (COURTKNIGHTS_GITHUB_AUTH_URL)")
+	_ = v.BindPFlag("github.auth_url", f.Lookup("github-auth-url"))
+
+	f.String("github-token-url", "", "Override GitHub OAuth2 token URL — use for local mocks (COURTKNIGHTS_GITHUB_TOKEN_URL)")
+	_ = v.BindPFlag("github.token_url", f.Lookup("github-token-url"))
+
+	f.String("github-device-auth-url", "", "Override GitHub OAuth2 device auth URL — use for local mocks (COURTKNIGHTS_GITHUB_DEVICE_AUTH_URL)")
+	_ = v.BindPFlag("github.device_auth_url", f.Lookup("github-device-auth-url"))
 
 	// Bootstrap admin
 	f.String("bootstrap-email", "", "Admin bootstrap email (COURTKNIGHTS_BOOTSTRAP_EMAIL)")
