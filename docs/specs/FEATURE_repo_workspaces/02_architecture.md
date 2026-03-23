@@ -397,15 +397,10 @@ The file is committed.
 
 ## Open questions
 
-1. **`web/` vs `ui/`:** `CLAUDE.md` and `01_business.md` refer to the frontend directory
-   as `web/`, but the filesystem currently contains a directory named `ui/`. Clarify
-   which name is canonical before the Makefile delegation is written. This architecture
-   assumes `web/` as specified in the business document.
+All open questions resolved.
 
-2. **`services/` directory:** A `services/api/internal/` tree exists at the repository
-   root, likely from a previous incomplete restructuring. Confirm it is safe to delete
-   before migrating. No source file in `cmd/`, `internal/`, or `db/` should reference it.
-
-3. **`docker-compose.dev.yml` build context:** The current compose file may reference
-   Go source paths at the root (e.g. volume mounts for live reload). These paths must
-   be updated to `api/`; confirm the exact mounts before making changes.
+| # | Question | Resolution |
+|---|----------|-----------|
+| 1 | `web/` vs `ui/` | **`web/`** is canonical. The `ui/` directory is a stale artefact to be deleted. |
+| 2 | `services/` directory | Contains no files — only empty directories. Safe to delete. |
+| 3 | `docker-compose.dev.yml` paths | File has no bind mounts or build contexts pointing to Go source. No changes needed after the restructure. |
