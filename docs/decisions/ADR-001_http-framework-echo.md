@@ -14,7 +14,7 @@ The backend requires an HTTP framework to expose REST APIs. Go's standard librar
 
 Use **[Echo](https://echo.labstack.com/)** (v4) as the HTTP framework for all API endpoints.
 
-- Route handlers live in `internal/transport/http/`.
+- Route handlers live in `api/internal/api/<feature>/`.
 - Middleware (auth, logging, error handling, CORS) is registered at the router level, not inside handlers.
 - Request binding and validation are handled via Echo's built-in mechanisms.
 

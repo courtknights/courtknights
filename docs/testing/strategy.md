@@ -69,10 +69,10 @@ Integration test files use the build tag `//go:build integration` so they are ex
 
 | Layer | Minimum |
 |-------|---------|
-| `internal/domain/` | ≥ 90% (unit) |
-| `internal/application/` | ≥ 80% (unit) |
-| `internal/infrastructure/` | ≥ 70% (integration) |
-| `internal/transport/http/` | ≥ 80% (unit + integration) |
+| `api/internal/domain/` | ≥ 90% (unit) |
+| `api/internal/application/` | ≥ 80% (unit) |
+| `api/internal/infrastructure/` | ≥ 70% (integration) |
+| `api/internal/api/` | ≥ 80% (unit + integration) |
 
 ### Running tests
 

@@ -46,14 +46,14 @@ Response: 200 { ... } | 404
 ## Internal package structure
 
 <!-- Which packages are created or modified.
-     Keep consistent with the internal/ layer structure. -->
+     Keep consistent with the api/internal/ layer structure. -->
 
 ```
-internal/
+api/internal/
   domain/
   application/
   infrastructure/
-  transport/http/
+  api/
 ```
 
 ## ADRs applied

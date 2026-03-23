@@ -77,20 +77,29 @@ docs/
 
 ```
 courtknights/
-  cmd/              # Go entrypoints (main packages)
-  internal/         # Go internal packages (domain, application, infrastructure)
-  db/
+  go.work           # Go workspace (coordinates api/ module)
+  Makefile          # Dispatcher — delegates to workspace Makefiles
+  api/              # Go workspace
+    go.mod
+    go.sum
+    Makefile        # Backend-specific commands
+    cmd/            # Go entrypoints (main packages)
+    internal/       # Go internal packages (domain, application, infrastructure)
+    build/          # Compiled binaries (gitignored)
+  db/               # Database workspace (SQL — no Go module)
+    Makefile        # Migration commands (migrate, rollback, status)
+    README.md
     schema/         # PostgreSQL schema definitions
     migrations/     # Database migrations
+  web/              # Angular frontend workspace
+  infra/            # Deployment workspace (scaffold — manifests and scripts)
+  e2e/              # Acceptance test workspace (scaffold — Playwright)
   docs/
     context/        # Business domain, users, glossary
     decisions/      # Global Architecture Decision Records (ADR-NNN_title.md)
     testing/        # Testing strategy and regression map
     specs/          # Feature specs (one directory per feature: FEATURE_xxx/)
-  web/              # Angular frontend
-  build/            # Compiled binaries
   Dependency.md     # All direct dependencies (name, purpose, license)
-  Makefile
 ```
 
 ---
@@ -103,12 +112,17 @@ courtknights/
 | Run backend | `make run` |
 | Test backend | `make test` |
 | Lint backend | `make lint` |
-| Install frontend deps | `cd web && npm install` |
-| Run frontend dev server | `cd web && npm start` |
-| Build frontend | `cd web && npm run build` |
-| Test frontend | `cd web && npm test` |
+| Install frontend deps | `make web-install` |
+| Run frontend dev server | `make web-start` |
+| Build frontend | `make web-build` |
+| Test frontend | `make web-test` |
+| Apply DB migrations | `make db-migrate` |
+| Rollback last migration | `make db-rollback` |
+| Show migration status | `make db-status` |
 
-> Commands are defined in the `Makefile`. Keep them up to date as the project evolves.
+> All commands are dispatched from the root `Makefile` to the relevant workspace `Makefile`.
+> To run backend-specific commands directly: `cd api && make <target>`.
+> Keep Makefiles up to date as the project evolves.
 
 ---
 
@@ -133,6 +147,8 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 | CLI + configuration | Cobra + Viper | [ADR-002](docs/decisions/ADR-002_cli-cobra-viper.md) |
 | Primary database | PostgreSQL | [ADR-003](docs/decisions/ADR-003_database-postgresql.md) |
 | Integration test infrastructure | Testcontainers | [ADR-004](docs/decisions/ADR-004_testcontainers.md) |
+| Go workspace | go.work | [ADR-009](docs/decisions/ADR-009_go-workspace.md) |
+| Database migrations | golang-migrate | [ADR-010](docs/decisions/ADR-010_migration-tool-golang-migrate.md) |
 
 ### Dependency tracking
 

@@ -46,11 +46,11 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                 | Description                                                                                               |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `internal/domain/user/user.go`       | `User` struct; `Role` enum (`admin`, `user`); `Provider` enum (`google`, `github`, `pat`)                 |
-| `internal/domain/user/repository.go` | `UserRepository` interface: `FindByID`, `FindByProvider`, `Upsert`                                        |
-| `internal/domain/pat/pat.go`         | `PAT` struct: `ID`, `KeyHash`, `Salt`, `ExpiresAt`, `CreatedAt`                                           |
-| `internal/domain/pat/repository.go`  | `PATRepository` interface: `FindAll`, `FindByID`, `Save`, `Delete`                                        |
-| `internal/domain/ckerrors/auth.go`   | Sentinel errors: `ErrUserNotFound`, `ErrPATNotFound`, `ErrPATExpired`, `ErrInvalidPAT`, `ErrUnauthorized` |
+| `api/api/internal/domain/user/user.go`       | `User` struct; `Role` enum (`admin`, `user`); `Provider` enum (`google`, `github`, `pat`)                 |
+| `api/api/internal/domain/user/repository.go` | `UserRepository` interface: `FindByID`, `FindByProvider`, `Upsert`                                        |
+| `api/api/internal/domain/pat/pat.go`         | `PAT` struct: `ID`, `KeyHash`, `Salt`, `ExpiresAt`, `CreatedAt`                                           |
+| `api/api/internal/domain/pat/repository.go`  | `PATRepository` interface: `FindAll`, `FindByID`, `Save`, `Delete`                                        |
+| `api/api/internal/domain/ckerrors/auth.go`   | Sentinel errors: `ErrUserNotFound`, `ErrPATNotFound`, `ErrPATExpired`, `ErrInvalidPAT`, `ErrUnauthorized` |
 
 **Tests:** unit tests for any domain logic (e.g. `User.IsAdmin()`, PAT expiry check).
 
@@ -83,8 +83,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                                  | Description                                                         |
 | ----------------------------------------------------- | ------------------------------------------------------------------- |
-| `internal/infrastructure/postgres/user_repository.go` | Implements `UserRepository`: `FindByID`, `FindByProvider`, `Upsert` |
-| `internal/infrastructure/postgres/pat_repository.go`  | Implements `PATRepository`: `FindAll`, `FindByID`, `Save`, `Delete` |
+| `api/api/internal/infrastructure/postgres/user_repository.go` | Implements `UserRepository`: `FindByID`, `FindByProvider`, `Upsert` |
+| `api/api/internal/infrastructure/postgres/pat_repository.go`  | Implements `PATRepository`: `FindAll`, `FindByID`, `Save`, `Delete` |
 
 **Tests:** integration tests using Testcontainers (build tag `integration`).
 - `FindByProvider` returns `ErrUserNotFound` when no match
@@ -104,7 +104,7 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                 | Description                                                                                                                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/infrastructure/jwt/jwt.go` | `Sign(user *domain.User) (string, error)` — issues HS256 JWT (claims: `sub`, `email`, `role`, `exp`); `Validate(token string) (*Claims, error)` — verifies signature + expiry |
+| `api/api/internal/infrastructure/jwt/jwt.go` | `Sign(user *domain.User) (string, error)` — issues HS256 JWT (claims: `sub`, `email`, `role`, `exp`); `Validate(token string) (*Claims, error)` — verifies signature + expiry |
 
 **Configuration:** secret key and expiry (`1h`) read from Viper config / env vars (`COURTKNIGHTS_JWT_SECRET`, `COURTKNIGHTS_JWT_EXPIRY`).
 
@@ -125,9 +125,9 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                       | Description                                                                                                                                                                                                        |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `internal/infrastructure/oauth2/oauth2.go` | `Provider` interface: `AuthCodeURL(state string) string`; `Exchange(ctx, code string) (*UserInfo, error)`; `DeviceAuth(ctx) (*DeviceAuthResponse, error)`; `DevicePoll(ctx, deviceCode string) (*UserInfo, error)` |
-| `internal/infrastructure/oauth2/google.go` | Implements `Provider` for Google                                                                                                                                                                                   |
-| `internal/infrastructure/oauth2/github.go` | Implements `Provider` for GitHub                                                                                                                                                                                   |
+| `api/api/internal/infrastructure/oauth2/oauth2.go` | `Provider` interface: `AuthCodeURL(state string) string`; `Exchange(ctx, code string) (*UserInfo, error)`; `DeviceAuth(ctx) (*DeviceAuthResponse, error)`; `DevicePoll(ctx, deviceCode string) (*UserInfo, error)` |
+| `api/api/internal/infrastructure/oauth2/google.go` | Implements `Provider` for Google                                                                                                                                                                                   |
+| `api/api/internal/infrastructure/oauth2/github.go` | Implements `Provider` for GitHub                                                                                                                                                                                   |
 
 **Configuration:** client ID, client secret, and redirect URL per provider, read from Viper config / env vars.
 
@@ -148,7 +148,7 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                   | Description                                                                                                                  |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `internal/application/auth/manager.go` | `AuthManager` struct with injected `UserRepository` + `PATRepository`; implements all methods listed in `02_architecture.md` |
+| `api/api/internal/application/auth/manager.go` | `AuthManager` struct with injected `UserRepository` + `PATRepository`; implements all methods listed in `02_architecture.md` |
 
 **Manager methods:**
 
@@ -179,7 +179,7 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                   | Description                                                                        |
 | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `internal/application/auth/service.go` | `AuthService` struct; orchestrates `AuthManager` + OAuth2 `Provider` + JWT adapter |
+| `api/api/internal/application/auth/service.go` | `AuthService` struct; orchestrates `AuthManager` + OAuth2 `Provider` + JWT adapter |
 
 **Service methods:**
 
@@ -209,8 +209,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                                | Description                                                                                                                                         |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/api/router.go`            | Creates the Echo instance; registers `common/middleware.go` on `/api/v1/*`; exposes `Mount(group, routes)` to register module route groups          |
-| `internal/api/common/middleware.go` | JWT middleware: reads `Authorization` header → validates with JWT adapter → sets `sub`, `email`, `role` on `echo.Context`; returns `401` on failure |
+| `api/api/internal/api/router.go`            | Creates the Echo instance; registers `common/middleware.go` on `/api/v1/*`; exposes `Mount(group, routes)` to register module route groups          |
+| `api/api/internal/api/common/middleware.go` | JWT middleware: reads `Authorization` header → validates with JWT adapter → sets `sub`, `email`, `role` on `echo.Context`; returns `401` on failure |
 
 **Tests:** unit tests for middleware.
 - Valid JWT → handler receives correct context values
@@ -230,8 +230,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                           | Description                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------- |
-| `internal/api/auth/handler.go` | `GET /auth/google` → redirect; `GET /auth/google/callback` → JWT; same for `/auth/github` |
-| `internal/api/auth/routes.go`  | Registers the four OAuth2 redirect routes on the auth group                               |
+| `api/api/internal/api/auth/handler.go` | `GET /auth/google` → redirect; `GET /auth/google/callback` → JWT; same for `/auth/github` |
+| `api/api/internal/api/auth/routes.go`  | Registers the four OAuth2 redirect routes on the auth group                               |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `GET /auth/google` returns `302` with a Google URL in `Location`
@@ -250,8 +250,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                           | Description                                                                                  |
 | ------------------------------ | -------------------------------------------------------------------------------------------- |
-| `internal/api/auth/handler.go` | `POST /auth/device` → device auth response; `POST /auth/device/token` → JWT or pending error |
-| `internal/api/auth/routes.go`  | Registers the two device flow routes                                                         |
+| `api/api/internal/api/auth/handler.go` | `POST /auth/device` → device auth response; `POST /auth/device/token` → JWT or pending error |
+| `api/api/internal/api/auth/routes.go`  | Registers the two device flow routes                                                         |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `POST /auth/device` with valid provider returns `200` with `user_code` and `verification_uri`
@@ -270,8 +270,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                           | Description                                                  |
 | ------------------------------ | ------------------------------------------------------------ |
-| `internal/api/auth/handler.go` | `POST /auth/token/pat` → JWT; `POST /auth/refresh` → new JWT |
-| `internal/api/auth/routes.go`  | Registers the two routes                                     |
+| `api/api/internal/api/auth/handler.go` | `POST /auth/token/pat` → JWT; `POST /auth/refresh` → new JWT |
+| `api/api/internal/api/auth/routes.go`  | Registers the two routes                                     |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `POST /auth/token/pat` with valid PAT returns `200` with JWT
@@ -291,8 +291,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                           | Description                                                                        |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `internal/api/pats/handler.go` | `POST /api/v1/pats` (admin); `GET /api/v1/pats`; `DELETE /api/v1/pats/:id` (admin) |
-| `internal/api/pats/routes.go`  | Registers the three routes under `/api/v1` group                                   |
+| `api/api/internal/api/pats/handler.go` | `POST /api/v1/pats` (admin); `GET /api/v1/pats`; `DELETE /api/v1/pats/:id` (admin) |
+| `api/api/internal/api/pats/routes.go`  | Registers the three routes under `/api/v1` group                                   |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `POST /api/v1/pats` as admin returns `201` with raw PAT (shown once)
@@ -312,8 +312,8 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                            | Description                                                  |
 | ------------------------------- | ------------------------------------------------------------ |
-| `internal/api/users/handler.go` | `GET /api/v1/users/me`; `PUT /api/v1/users/:id/role` (admin) |
-| `internal/api/users/routes.go`  | Registers the two routes under `/api/v1` group               |
+| `api/api/internal/api/users/handler.go` | `GET /api/v1/users/me`; `PUT /api/v1/users/:id/role` (admin) |
+| `api/api/internal/api/users/routes.go`  | Registers the two routes under `/api/v1` group               |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `GET /api/v1/users/me` returns `200` with authenticated user profile
