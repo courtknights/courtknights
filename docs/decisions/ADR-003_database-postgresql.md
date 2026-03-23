@@ -16,7 +16,7 @@ Use **PostgreSQL** as the primary database.
 
 - Schema definitions live in `db/schema/`.
 - Migrations live in `db/migrations/` and must be sequential and reversible.
-- No raw SQL outside of the repository/data layer (`internal/infrastructure/`).
+- No raw SQL outside of the repository/data layer (`api/internal/infrastructure/`).
 
 ## Alternatives considered
 

@@ -2,7 +2,7 @@
 .claude/
 
 # Go binaries and build output
-build/
+api/build/
 *.exe
 *.exe~
 *.dll

@@ -39,7 +39,7 @@ All clients obtain a JWT from `/auth/*` and use it identically on protected endp
 The authentication feature follows the clean architecture layers defined across the project, with a **manager layer** inside `application/` that orchestrates business logic across multiple domain repositories.
 
 ```
-internal/
+api/internal/
   domain/
     user/
       user.go                  # User entity, Role and Provider enums

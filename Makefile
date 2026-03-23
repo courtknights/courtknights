@@ -1,39 +1,53 @@
-BINARY_NAME   := courtknights-api
-BUILD_DIR     := build
-CMD_SERVER    := ./cmd/server
+# Root Makefile — dispatcher
 
-.PHONY: all build run test test-int test-all lint fmt clean
+.PHONY: build run test test-int test-all lint fmt clean \
+        db-migrate db-rollback db-status \
+        web-install web-start web-build web-test
 
-## all: build the binary (default target)
-all: build
-
-## build: compile the backend binary
+## api targets
 build:
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_SERVER)
+	$(MAKE) -C api build
 
-## run: run the backend server
 run:
-	go run $(CMD_SERVER)
+	$(MAKE) -C api run
 
-## test: run unit tests (no external processes required)
 test:
-	go test -race -count=1 ./...
+	$(MAKE) -C api test
 
-## test-int: run integration tests (requires Docker for Testcontainers)
 test-int:
-	go test -race -count=1 -tags integration ./...
+	$(MAKE) -C api test-int
 
-## test-all: run unit and integration tests
-test-all: test test-int
+test-all:
+	$(MAKE) -C api test-all
 
-## lint: run golangci-lint
 lint:
-	golangci-lint run ./...
+	$(MAKE) -C api lint
 
-## fmt: format all Go files
 fmt:
-	gofmt -w .
+	$(MAKE) -C api fmt
 
-## clean: remove build artefacts
 clean:
-	rm -rf $(BUILD_DIR)/$(BINARY_NAME)
+	$(MAKE) -C api clean
+
+## db targets
+db-migrate:
+	$(MAKE) -C db migrate
+
+db-rollback:
+	$(MAKE) -C db rollback
+
+db-status:
+	$(MAKE) -C db status
+
+## web targets
+web-install:
+	$(MAKE) -C web install
+
+web-start:
+	$(MAKE) -C web start
+
+web-build:
+	$(MAKE) -C web build
+
+web-test:
+	$(MAKE) -C web test

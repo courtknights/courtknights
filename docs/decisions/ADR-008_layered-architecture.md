@@ -23,23 +23,23 @@ feature went through two iterations:
 
 ## Decision
 
-Every feature in `internal/` is structured in three layers:
+Every feature in `api/internal/` is structured in three layers:
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  Handler          (internal/api/<feature>/)           │
-│  HTTP boundary — decodes requests, encodes responses  │
-│  Depends on: Manager interface only (never concrete)  │
-├──────────────────────────────────────────────────────┤
-│  Manager          (internal/application/<feature>/)   │
-│  Business logic and orchestration                     │
-│  Exposes: a Go interface consumed by the Handler      │
-│  May call: Repositories and/or other Managers         │
-├──────────────────────────────────────────────────────┤
-│  Repository       (internal/infrastructure/postgres/) │
-│  Persistence — SQL queries, no business logic         │
-│  Calls: Database driver only                          │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Handler          (api/internal/api/<feature>/)           │
+│  HTTP boundary — decodes requests, encodes responses      │
+│  Depends on: Manager interface only (never concrete)      │
+├──────────────────────────────────────────────────────────┤
+│  Manager          (api/internal/application/<feature>/)   │
+│  Business logic and orchestration                         │
+│  Exposes: a Go interface consumed by the Handler          │
+│  May call: Repositories and/or other Managers             │
+├──────────────────────────────────────────────────────────┤
+│  Repository       (api/internal/infrastructure/postgres/) │
+│  Persistence — SQL queries, no business logic             │
+│  Calls: Database driver only                              │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Manager composition
@@ -88,7 +88,7 @@ The same convention applies to sub-managers: the feature manager holds a field
 of the sub-manager's interface type, never the concrete struct.
 
 ```go
-// internal/application/auth/manager.go
+// api/internal/application/auth/manager.go
 
 type AuthManager interface {
     OAuthRedirectURL(provider user.Provider, state string) (string, error)
@@ -107,7 +107,7 @@ func NewAuthManager(u UserManager, j JWTManager, o OAuthManager) AuthManager {
 ```
 
 ```go
-// internal/api/auth/handler.go
+// api/internal/api/auth/handler.go
 
 type AuthHandler struct { manager auth.AuthManager }  // depends on interface only
 ```
@@ -116,7 +116,7 @@ type AuthHandler struct { manager auth.AuthManager }  // depends on interface on
 
 #### Repository
 - Implements a domain interface (e.g. `user.UserRepository`) defined in
-  `internal/domain/`.
+  `api/internal/domain/`.
 - Returns domain entities or sentinel errors from `domain/ckerrors/`.
 - Contains **no business logic** — no if-statements that encode rules, only
   data mapping and SQL.
@@ -135,7 +135,7 @@ type AuthHandler struct { manager auth.AuthManager }  // depends on interface on
 - Fully unit-testable: replace any dependency with a mock of its interface.
 
 #### Handler
-- Lives in `internal/api/<feature>/`.
+- Lives in `api/internal/api/<feature>/`.
 - Holds a field of the **feature manager interface** type — never the concrete
   struct.
 - Decodes HTTP request → calls the feature manager → encodes HTTP response.
@@ -160,14 +160,14 @@ never on concrete types from the adjacent layer.
 ### Infrastructure adapters
 
 Infrastructure adapters (JWT, OAuth2 providers, email, …) live in
-`internal/infrastructure/` and implement interfaces defined alongside the
+`api/internal/infrastructure/` and implement interfaces defined alongside the
 manager that uses them. This keeps managers unit-testable without any external
 process running.
 
 ### Package layout (authentication feature)
 
 ```
-internal/
+api/internal/
   domain/
     user/           user.go, repository.go   ← UserRepository interface
     pat/            pat.go, repository.go    ← PATRepository interface

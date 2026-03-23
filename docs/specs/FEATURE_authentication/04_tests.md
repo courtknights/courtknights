@@ -16,7 +16,7 @@
 
 ## T-01 — Domain layer
 
-**File:** `internal/domain/user/user_test.go`
+**File:** `api/api/internal/domain/user/user_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -25,7 +25,7 @@
 | 3 | `TestRole_String_ReturnsExpectedValues` | unit | `RoleAdmin.String() == "admin"`, `RoleUser.String() == "user"` |
 | 4 | `TestProvider_String_ReturnsExpectedValues` | unit | `ProviderGoogle.String() == "google"`, `ProviderGitHub.String() == "github"`, `ProviderPAT.String() == "pat"` |
 
-**File:** `internal/domain/pat/pat_test.go`
+**File:** `api/api/internal/domain/pat/pat_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 }
 ```
 
-**File:** `internal/infrastructure/postgres/user_repository_integration_test.go`
+**File:** `api/api/internal/infrastructure/postgres/user_repository_integration_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -76,7 +76,7 @@ func TestMain(m *testing.M) {
 | 6 | `TestUserRepository_FindByProvider_ReturnsErrUserNotFound` | integration | `FindByProvider` with unknown `(provider, providerID)` returns `ckerrors.ErrUserNotFound` |
 | 7 | `TestUserRepository_UniqueConstraint_ProviderProviderID` | integration | Inserting two users with same `(provider, provider_id)` returns DB error |
 
-**File:** `internal/infrastructure/postgres/pat_repository_integration_test.go`
+**File:** `api/api/internal/infrastructure/postgres/pat_repository_integration_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 
 ## T-04 — JWT adapter
 
-**File:** `internal/infrastructure/jwt/jwt_test.go`
+**File:** `api/api/internal/infrastructure/jwt/jwt_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -106,7 +106,7 @@ func TestMain(m *testing.M) {
 
 ## T-05 — OAuth2 adapters
 
-**File:** `internal/infrastructure/oauth2/google_test.go`
+**File:** `api/api/internal/infrastructure/oauth2/google_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -118,7 +118,7 @@ func TestMain(m *testing.M) {
 | 6 | `TestGoogle_DevicePoll_ReturnsPendingError` | unit | Mocked HTTP response with `error=authorization_pending` returns the expected error |
 | 7 | `TestGoogle_DevicePoll_ReturnsUserInfoWhenAuthorised` | unit | Mocked HTTP success response returns `UserInfo` |
 
-**File:** `internal/infrastructure/oauth2/github_test.go`
+**File:** `api/api/internal/infrastructure/oauth2/github_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -131,7 +131,7 @@ func TestMain(m *testing.M) {
 
 ## T-06 — AuthManager
 
-**File:** `internal/application/auth/manager_test.go`
+**File:** `api/api/internal/application/auth/manager_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -150,7 +150,7 @@ func TestMain(m *testing.M) {
 
 ## T-07 — AuthService
 
-**File:** `internal/application/auth/service_test.go`
+**File:** `api/api/internal/application/auth/service_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -169,7 +169,7 @@ func TestMain(m *testing.M) {
 
 ## T-08 — Router and JWT middleware
 
-**File:** `internal/api/common/middleware_test.go`
+**File:** `api/api/internal/api/common/middleware_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -184,7 +184,7 @@ func TestMain(m *testing.M) {
 
 ## T-09 — OAuth2 redirect flow handlers
 
-**File:** `internal/api/auth/handler_oauth_test.go`
+**File:** `api/api/internal/api/auth/handler_oauth_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -199,7 +199,7 @@ func TestMain(m *testing.M) {
 
 ## T-10 — Device Authorization flow handlers
 
-**File:** `internal/api/auth/handler_device_test.go`
+**File:** `api/api/internal/api/auth/handler_device_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -214,7 +214,7 @@ func TestMain(m *testing.M) {
 
 ## T-11 — PAT exchange and JWT refresh handlers
 
-**File:** `internal/api/auth/handler_pat_test.go`
+**File:** `api/api/internal/api/auth/handler_pat_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -230,7 +230,7 @@ func TestMain(m *testing.M) {
 
 ## T-12 — PAT management endpoints
 
-**File:** `internal/api/pats/handler_test.go`
+**File:** `api/api/internal/api/pats/handler_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -246,7 +246,7 @@ func TestMain(m *testing.M) {
 
 ## T-13 — User management endpoints
 
-**File:** `internal/api/users/handler_test.go`
+**File:** `api/api/internal/api/users/handler_test.go`
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
@@ -261,7 +261,7 @@ func TestMain(m *testing.M) {
 
 ## T-14 — Bootstrap admin flow
 
-**File:** `internal/infrastructure/postgres/bootstrap_integration_test.go`
+**File:** `api/api/internal/infrastructure/postgres/bootstrap_integration_test.go`
 
 ```go
 //go:build integration
