@@ -21,7 +21,7 @@
 
 ### TASK-001: Remove stale artefacts from the repository root
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #42
 - **Depends on:** none
 - **Layer(s):** repository
 - **Description:**
@@ -37,7 +37,7 @@
 
 ### TASK-002: Move Go source tree into `api/`
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #43
 - **Depends on:** TASK-001
 - **Layer(s):** repository, api
 - **Description:**
@@ -60,7 +60,7 @@
 
 ### TASK-003: Move `db/` to a top-level workspace
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #44
 - **Depends on:** TASK-001
 - **Layer(s):** repository, db
 - **Description:**
@@ -82,7 +82,7 @@
 
 ### TASK-004: Add `go.work` at the repository root
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #45
 - **Depends on:** TASK-002
 - **Layer(s):** repository, api
 - **Description:**
@@ -102,7 +102,7 @@
 
 ### TASK-005: Replace root `Makefile` with workspace dispatcher
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #46
 - **Depends on:** TASK-002, TASK-003, TASK-004
 - **Layer(s):** repository
 - **Description:**
@@ -129,7 +129,7 @@
 
 ### TASK-006: Scaffold `infra/` and `e2e/` workspaces
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #47
 - **Depends on:** TASK-001
 - **Layer(s):** repository
 - **Description:**
@@ -151,7 +151,7 @@
 
 ### TASK-007: Update documentation and internal references
 
-- **GitHub Issue:** #
+- **GitHub Issue:** #48
 - **Depends on:** TASK-002, TASK-003, TASK-004, TASK-005, TASK-006
 - **Layer(s):** repository
 - **Description:**
