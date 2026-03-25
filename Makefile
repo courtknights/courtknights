@@ -2,7 +2,8 @@
 
 .PHONY: build run test test-int test-all lint fmt clean \
         db-migrate db-rollback db-status \
-        web-install web-start web-build web-test
+        web-install web-start web-build web-test \
+        cicd-spec-ref cicd-backend-cov cicd-frontend-cov cicd-adr
 
 ## api targets
 build:
@@ -38,6 +39,19 @@ db-rollback:
 
 db-status:
 	$(MAKE) -C db status
+
+## cicd targets
+cicd-spec-ref:
+	$(MAKE) -C infra/cicd check-spec-ref
+
+cicd-backend-cov:
+	$(MAKE) -C infra/cicd check-backend-cov
+
+cicd-frontend-cov:
+	$(MAKE) -C infra/cicd check-frontend-cov
+
+cicd-adr:
+	$(MAKE) -C infra/cicd check-adr
 
 ## web targets
 web-install:
