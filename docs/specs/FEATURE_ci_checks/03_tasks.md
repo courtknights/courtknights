@@ -53,13 +53,18 @@
     - `PR_LABELS` — comma-separated list of labels on the PR.
   - If `PR_LABELS` contains `no-spec`, exit 0 immediately.
   - If `PR_BODY` does not match `Spec: docs/specs/`, print an error message and exit 1.
+  - Extract the spec path from the matched line and derive the spec directory.
+  - Check that `<spec_dir>/05_acceptance.md` exists in the repository. If missing, exit 1.
+  - Check that `05_acceptance.md` contains `Status: approved`. If not, exit 1.
   - Otherwise exit 0.
   - Update the `check-spec-ref` target in `infra/cicd/Makefile` to invoke the script.
 - **Done when:**
   - [ ] `infra/cicd/check_spec_ref.sh` exists and is executable.
   - [ ] Script exits 0 when `PR_LABELS` contains `no-spec`, regardless of body content.
   - [ ] Script exits 1 when `PR_BODY` has no `Spec: docs/specs/` line.
-  - [ ] Script exits 0 when `PR_BODY` contains a valid spec reference.
+  - [ ] Script exits 1 when the referenced spec has no `05_acceptance.md`.
+  - [ ] Script exits 1 when `05_acceptance.md` exists but `Status:` is not `approved`.
+  - [ ] Script exits 0 when `PR_BODY` contains a valid spec reference and acceptance is approved.
   - [ ] `make cicd-spec-ref` invokes the script with the expected environment variables.
 
 ---

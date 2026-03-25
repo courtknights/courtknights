@@ -25,9 +25,19 @@ All four checks must appear as individual GitHub status checks on every PR.
 
 ---
 
-## AC-002: Spec reference check passes when the spec line is present
+## AC-002: Spec reference check blocks PRs whose spec has no approved acceptance document
 
 **Given** a pull request to `main` whose body contains a valid `Spec: docs/specs/<path>` line
+**And** the referenced spec directory has no `05_acceptance.md`, or the file exists but its `Status:` is not `approved`
+**When** the CI workflow runs
+**Then** the `spec-ref` status check fails with a message indicating the acceptance document is missing or not approved.
+
+---
+
+## AC-002b: Spec reference check passes when the spec line is present and acceptance is approved
+
+**Given** a pull request to `main` whose body contains a valid `Spec: docs/specs/<path>` line
+**And** the referenced spec directory contains a `05_acceptance.md` with `Status: approved`
 **When** the CI workflow runs
 **Then** the `spec-ref` status check passes.
 

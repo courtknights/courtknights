@@ -31,7 +31,7 @@ This feature affects **project contributors and maintainers** — primarily the 
 ### In scope
 
 - GitHub Actions workflow that runs on every pull request to `main`.
-- **Spec reference check:** Block merge if the PR body does not contain a `Spec: docs/specs/...` line. PRs labelled `no-spec` are exempt (for hotfixes and non-feature work).
+- **Spec reference check:** Block merge if the PR body does not contain a `Spec: docs/specs/...` line. Additionally, the referenced spec must have an approved acceptance document (`05_acceptance.md` with `Status: approved`) — a spec without signed-off acceptance criteria is treated as incomplete. PRs labelled `no-spec` are exempt (for hotfixes and non-feature work).
 - **Backend test coverage check:** Fail the build if coverage for any of the following layers drops below its defined minimum:
 
   | Layer | Minimum |

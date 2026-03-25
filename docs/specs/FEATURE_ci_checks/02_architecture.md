@@ -80,14 +80,23 @@ If the PR carries the `no-spec` label, the job exits with success immediately wi
 
 ```
 1. Fetch PR body from GitHub Actions event payload (${{ github.event.pull_request.body }})
-2. Check whether the body matches the pattern: Spec: docs/specs/
-3. If no match → exit 1 (blocks PR)
-4. If match    → exit 0
+2. If PR_LABELS contains "no-spec" → exit 0 (exempt)
+3. Check whether the body matches the pattern: Spec: docs/specs/
+4. If no match → exit 1 (missing spec reference)
+5. Extract the spec path from the matched line (e.g. docs/specs/FEATURE_xxx/02_architecture.md)
+6. Derive the spec directory (e.g. docs/specs/FEATURE_xxx/)
+7. Check that <spec_dir>/05_acceptance.md exists in the checked-out branch
+8. If file missing → exit 1 (incomplete spec — no acceptance document)
+9. Check that 05_acceptance.md contains a line matching: Status: approved
+10. If not approved → exit 1 (acceptance criteria not signed off)
+11. All checks pass → exit 0
 ```
 
 ### Implementation
 
-A bash script (`check_spec_ref.sh`) receives the PR body as an environment variable and the label list as a second variable. No external dependencies.
+A bash script (`check_spec_ref.sh`) receives the PR body as `PR_BODY` and the label list as
+`PR_LABELS`. It also reads the repository filesystem (the PR branch is already checked out by
+the workflow). No external dependencies beyond `grep` and standard POSIX tools.
 
 ---
 

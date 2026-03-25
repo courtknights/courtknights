@@ -25,7 +25,7 @@ output.
 
 ## Test cases — Job 1: Spec reference check (`check_spec_ref.sh`)
 
-### TC-SPEC-001: PR with valid spec reference passes
+### TC-SPEC-001: PR with valid spec reference and approved acceptance passes
 
 - **Type:** functional
 - **Input:**
@@ -33,6 +33,7 @@ output.
   PR_BODY="Fix league creation bug\n\nSpec: docs/specs/FEATURE_ci_checks/02_architecture.md"
   PR_LABELS=""
   ```
+- **Setup:** `docs/specs/FEATURE_ci_checks/05_acceptance.md` exists with `Status: approved`.
 - **Command:** `PR_BODY="..." PR_LABELS="" make cicd-spec-ref`
 - **Expected:** exit 0, no error output.
 
@@ -64,7 +65,35 @@ output.
 
 ---
 
-### TC-SPEC-004: PR body contains `Spec:` prefix but path does not start with `docs/specs/`
+### TC-SPEC-004: PR references a spec directory with no `05_acceptance.md`
+
+- **Type:** functional
+- **Input:**
+  ```bash
+  PR_BODY="Spec: docs/specs/FEATURE_incomplete/02_architecture.md"
+  PR_LABELS=""
+  ```
+- **Setup:** ensure `docs/specs/FEATURE_incomplete/` exists but has no `05_acceptance.md`.
+- **Command:** `PR_BODY="..." PR_LABELS="" make cicd-spec-ref`
+- **Expected:** exit 1, error message indicating the acceptance document is missing.
+
+---
+
+### TC-SPEC-005: PR references a spec whose `05_acceptance.md` is not approved
+
+- **Type:** functional
+- **Input:**
+  ```bash
+  PR_BODY="Spec: docs/specs/FEATURE_incomplete/02_architecture.md"
+  PR_LABELS=""
+  ```
+- **Setup:** `docs/specs/FEATURE_incomplete/05_acceptance.md` exists with `Status: draft`.
+- **Command:** `PR_BODY="..." PR_LABELS="" make cicd-spec-ref`
+- **Expected:** exit 1, error message indicating the acceptance criteria are not approved.
+
+---
+
+### TC-SPEC-007: PR body contains `Spec:` prefix but path does not start with `docs/specs/`
 
 - **Type:** functional
 - **Input:**
@@ -77,7 +106,7 @@ output.
 
 ---
 
-### TC-SPEC-005: PR body contains spec reference among multiple lines
+### TC-SPEC-008: PR body contains spec reference among multiple lines and acceptance is approved
 
 - **Type:** functional
 - **Input:**
@@ -85,6 +114,7 @@ output.
   PR_BODY="## Summary\nAdds league endpoint.\n\nSpec: docs/specs/FEATURE_ci_checks/01_business.md\n\nCloses #42"
   PR_LABELS=""
   ```
+- **Setup:** `docs/specs/FEATURE_ci_checks/05_acceptance.md` exists with `Status: approved`.
 - **Command:** `PR_BODY="..." PR_LABELS="" make cicd-spec-ref`
 - **Expected:** exit 0.
 
