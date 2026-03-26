@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -67,8 +68,17 @@ func TestValidate_TamperedSignature(t *testing.T) {
 	token, err := a.Sign(u)
 	require.NoError(t, err)
 
-	// Flip the last character of the token to tamper with the signature.
-	tampered := token[:len(token)-1] + "X"
+	// Tamper with the signature by corrupting a character in the middle of
+	// the signature segment. Modifying the last character is unreliable
+	// because base64url trailing characters may carry only padding bits
+	// that the parser ignores, making the decoded bytes identical.
+	lastDot := strings.LastIndex(token, ".")
+	sigMid := lastDot + 1 + (len(token)-lastDot-1)/2
+	replacement := byte('X')
+	if token[sigMid] == 'X' {
+		replacement = 'Y'
+	}
+	tampered := token[:sigMid] + string(replacement) + token[sigMid+1:]
 
 	_, err = a.Validate(tampered)
 	require.Error(t, err)
