@@ -1,6 +1,6 @@
 # Root Makefile — dispatcher
 
-.PHONY: build run test test-int test-all lint fmt clean \
+.PHONY: build run test test-int test-all test-cov test-int-cov lint fmt clean \
         db-migrate db-rollback db-status \
         web-install web-start web-build web-test \
         cicd-spec-ref cicd-backend-cov cicd-frontend-cov cicd-adr
@@ -20,6 +20,12 @@ test-int:
 
 test-all:
 	$(MAKE) -C api test-all
+
+test-cov:
+	$(MAKE) -C api test-cov COV_OUT=$(COV_OUT)
+
+test-int-cov:
+	$(MAKE) -C api test-int-cov COV_OUT=$(COV_OUT)
 
 lint:
 	$(MAKE) -C api lint

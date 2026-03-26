@@ -9,7 +9,7 @@ check-spec-ref:
 	@bash "$(CURDIR)/check_spec_ref.sh"
 
 check-backend-cov:
-	@echo "not implemented" && exit 0
+	@bash "$(CURDIR)/check_backend_coverage.sh"
 
 check-frontend-cov:
 	@echo "not implemented" && exit 0

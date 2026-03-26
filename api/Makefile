@@ -2,7 +2,7 @@ BINARY_NAME := courtknights-api
 BUILD_DIR := build
 CMD_SERVER := ./cmd/server
 
-.PHONY: all build run test test-int test-all lint fmt clean
+.PHONY: all build run test test-int test-all test-cov test-int-cov lint fmt clean
 
 all: build
 
@@ -19,6 +19,13 @@ test-int:
 	go test -race -count=1 -tags integration ./...
 
 test-all: test test-int
+
+# COV_OUT must be set to an absolute path for the coverage profile output.
+test-cov:
+	go test -race -count=1 -coverprofile=$(COV_OUT) -covermode=atomic ./...
+
+test-int-cov:
+	go test -race -count=1 -tags=integration -coverprofile=$(COV_OUT) -covermode=atomic ./...
 
 lint:
 	golangci-lint run ./...
