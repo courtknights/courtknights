@@ -6,7 +6,7 @@
 .PHONY: check-spec-ref check-backend-cov check-frontend-cov check-adr
 
 check-spec-ref:
-	@echo "not implemented" && exit 0
+	@bash "$(CURDIR)/check_spec_ref.sh"
 
 check-backend-cov:
 	@echo "not implemented" && exit 0
