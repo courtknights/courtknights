@@ -31,3 +31,4 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_repo_workspaces | Repository layout (api/, db/, web/, infra/, e2e/) + workspace Makefiles + go.work | — | All features (path changes affect every workspace) |
 | FEATURE_ci_checks / TASK-001 | `infra/cicd/` workspace scaffold + stub Makefile targets + root Makefile dispatcher | FEATURE_repo_workspaces | FEATURE_ci_checks / TASK-002..006 |
 | FEATURE_ci_checks / TASK-002 | `check_spec_ref.sh` — spec reference check (no-spec label, Spec: line, 05_acceptance.md, Status: approved) | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
+| FEATURE_ci_checks / TASK-003 | `check_backend_coverage.sh` — per-layer coverage check (domain ≥90%, application ≥80%, infrastructure ≥70%, api ≥80%) | FEATURE_ci_checks / TASK-001, FEATURE_authentication | FEATURE_ci_checks / TASK-006 |
