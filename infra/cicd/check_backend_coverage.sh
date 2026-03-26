@@ -45,15 +45,14 @@ FAILED=0
 # Phase 1: Unit tests
 # ---------------------------------------------------------------------------
 echo "=== Phase 1: Running unit tests ==="
-cd "$API_DIR"
-go test -coverprofile="$COV_UNIT" -covermode=atomic ./...
+make -C "$API_DIR" test-cov COV_OUT="$COV_UNIT"
 echo ""
 
 # ---------------------------------------------------------------------------
 # Phase 2: Integration tests
 # ---------------------------------------------------------------------------
 echo "=== Phase 2: Running integration tests ==="
-go test -tags=integration -coverprofile="$COV_INT" -covermode=atomic ./...
+make -C "$API_DIR" test-int-cov COV_OUT="$COV_INT"
 echo ""
 
 # ---------------------------------------------------------------------------
