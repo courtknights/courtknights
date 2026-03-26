@@ -45,14 +45,14 @@ FAILED=0
 # Phase 1: Unit tests
 # ---------------------------------------------------------------------------
 echo "=== Phase 1: Running unit tests ==="
-make -C "$API_DIR" test-cov COV_OUT="$COV_UNIT"
+make -C "$REPO_ROOT" test-cov COV_OUT="$COV_UNIT"
 echo ""
 
 # ---------------------------------------------------------------------------
 # Phase 2: Integration tests
 # ---------------------------------------------------------------------------
 echo "=== Phase 2: Running integration tests ==="
-make -C "$API_DIR" test-int-cov COV_OUT="$COV_INT"
+make -C "$REPO_ROOT" test-int-cov COV_OUT="$COV_INT"
 echo ""
 
 # ---------------------------------------------------------------------------
