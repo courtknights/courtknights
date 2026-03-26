@@ -3,7 +3,7 @@
 Tracks dependencies between features. Update this file every time a feature is merged.
 When a feature is modified, all dependent features in this map must have their tests re-run.
 
-- **Last updated:** 2026-03-23
+- **Last updated:** 2026-03-26
 
 ---
 
@@ -29,3 +29,5 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_authentication / api/users | User management handlers (`/api/v1/users`) | application/auth, api/internal/api/common | — |
 | FEATURE_authentication / cmd/server | Server entrypoint, wiring, bootstrap hook | All of the above | — |
 | FEATURE_repo_workspaces | Repository layout (api/, db/, web/, infra/, e2e/) + workspace Makefiles + go.work | — | All features (path changes affect every workspace) |
+| FEATURE_ci_checks / TASK-001 | `infra/cicd/` workspace scaffold + stub Makefile targets + root Makefile dispatcher | FEATURE_repo_workspaces | FEATURE_ci_checks / TASK-002..006 |
+| FEATURE_ci_checks / TASK-002 | `check_spec_ref.sh` — spec reference check (no-spec label, Spec: line, 05_acceptance.md, Status: approved) | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
