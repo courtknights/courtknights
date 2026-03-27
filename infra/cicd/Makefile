@@ -12,7 +12,7 @@ check-backend-cov:
 	@bash "$(CURDIR)/check_backend_coverage.sh"
 
 check-frontend-cov:
-	@echo "not implemented" && exit 0
+	@bash "$(CURDIR)/check_frontend_coverage.sh"
 
 check-adr:
 	@echo "not implemented" && exit 0
