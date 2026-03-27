@@ -15,4 +15,4 @@ check-frontend-cov:
 	@bash "$(CURDIR)/check_frontend_coverage.sh"
 
 check-adr:
-	@echo "not implemented" && exit 0
+	@python3 "$(CURDIR)/check_adr_consistency.py"
