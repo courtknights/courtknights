@@ -3,7 +3,7 @@
 Tracks dependencies between features. Update this file every time a feature is merged.
 When a feature is modified, all dependent features in this map must have their tests re-run.
 
-- **Last updated:** 2026-03-26
+- **Last updated:** 2026-03-27
 
 ---
 
@@ -33,3 +33,4 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_ci_checks / TASK-002 | `check_spec_ref.sh` — spec reference check (no-spec label, Spec: line, 05_acceptance.md, Status: approved) | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
 | FEATURE_ci_checks / TASK-003 | `check_backend_coverage.sh` — per-layer coverage check (domain ≥90%, application ≥80%, infrastructure ≥70%, api ≥80%) | FEATURE_ci_checks / TASK-001, FEATURE_authentication | FEATURE_ci_checks / TASK-006 |
 | FEATURE_ci_checks / TASK-004 | `check_frontend_coverage.sh` — global statement coverage ≥75%, service function coverage 100% | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
+| FEATURE_ci_checks / TASK-005 | `check_adr_consistency.py` — AI-assisted ADR consistency check via claude-sonnet-4-6 (BLOCKING/WARNING violations, adr-change label) | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
