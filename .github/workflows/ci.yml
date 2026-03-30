@@ -41,6 +41,10 @@ jobs:
 
       - name: Run backend coverage check
         run: make cicd-backend-cov
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   frontend-cov:
     name: Frontend coverage check
@@ -69,6 +73,10 @@ jobs:
       - name: Run frontend coverage check
         if: steps.check-web.outputs.skip != 'true'
         run: make cicd-frontend-cov
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   adr-consistency:
     name: ADR consistency check

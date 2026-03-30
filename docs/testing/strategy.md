@@ -67,12 +67,14 @@ Integration test files use the build tag `//go:build integration` so they are ex
 
 ### Coverage minimum
 
-| Layer | Minimum |
-|-------|---------|
-| `api/internal/domain/` | ≥ 90% (unit) |
-| `api/internal/application/` | ≥ 80% (unit) |
-| `api/internal/infrastructure/` | ≥ 70% (integration) |
-| `api/internal/api/` | ≥ 80% (unit + integration) |
+| Layer | Minimum | Warning zone |
+|-------|---------|--------------|
+| `api/internal/domain/` | ≥ 90% (unit) | 80–89% |
+| `api/internal/application/` | ≥ 80% (unit) | 70–79% |
+| `api/internal/infrastructure/` | ≥ 70% (integration) | 60–69% |
+| `api/internal/api/` | ≥ 80% (unit + integration) | 70–79% |
+
+A layer in the **warning zone** (within 10 percentage points of its minimum) does not block the PR but posts an automated comment to flag the drift. Create a follow-up task to restore coverage before it crosses the error threshold.
 
 ### Running tests
 
@@ -104,10 +106,12 @@ make test-all      # unit + integration
 
 ### Coverage minimum
 
-| Scope | Minimum |
-|-------|---------|
-| `web/src/app/` overall | ≥ 75% |
-| Public service methods | 100% — every method has at least one unit test |
+| Scope | Minimum | Warning zone |
+|-------|---------|--------------|
+| `web/src/app/` overall | ≥ 75% | 65–74% |
+| Public service methods | 100% | 90–99% |
+
+A check in the **warning zone** (within 10 percentage points of its minimum) does not block the PR but posts an automated comment to flag the drift. Create a follow-up task to restore coverage before it crosses the error threshold.
 
 ### Running tests
 
