@@ -64,7 +64,8 @@ if [ ! -f "$ACCEPTANCE_FILE" ]; then
 fi
 
 # 7. Check that 05_acceptance.md contains Status: approved
-if ! grep -qF "Status: approved" "$ACCEPTANCE_FILE"; then
+# Use a regex to tolerate optional markdown bold markers (e.g. **Status:** approved)
+if ! grep -qE "Status:(\*\*)? approved" "$ACCEPTANCE_FILE"; then
     echo "ERROR: Acceptance criteria are not approved in: ${SPEC_DIR}/05_acceptance.md"
     echo "The file must contain a line: Status: approved"
     exit 1
