@@ -28,12 +28,24 @@ This feature introduces a structured branching model and updates the CI pipeline
 | Design | `feature/CK-XXX/000_design` | `feature/CK-XXX/branch` | `feature/CK-XXX/branch` | Squash |
 | Task | `feature/CK-XXX/NNN_description` | `feature/CK-XXX/branch` | `feature/CK-XXX/branch` | Squash |
 | Hotfix | `fix/CK-XXX_description` | `main` | `main` | Squash |
+| Chore | `chore/CK-XXX_description` | `main` | `main` | Squash |
 
 Where `NNN` matches the `TASK-NNN` number from `03_tasks.md` (zero-padded to three digits), and `description` is a short kebab-case slug.
 
 ### Design branch content rule
 
 The design branch (`*/000_design`) may only modify files under `docs/specs/`. Any change outside that path causes the CI `design-content-check` job to fail. This is enforced automatically on every PR from a branch whose name ends in `/000_design`.
+
+### Chore branch exception
+
+A **chore branch** is used for minor maintenance work that:
+- Does **not** introduce new product functionality.
+- Does **not** require a spec or design phase.
+- Is **not** an urgent production fix (that would be a hotfix).
+
+Typical candidates: improving test coverage, updating documentation, small refactors, dependency upgrades, CI maintenance.
+
+Chore branches follow the same path as hotfixes (branch from `main`, squash-merge back to `main`) and therefore run the **full CI suite** — there is no two-layer shortcut. A GitHub Issue is still required to provide traceability, but no `docs/specs/FEATURE_xxx/` directory is created.
 
 ### Feature lifecycle
 
@@ -66,10 +78,10 @@ on:
 
 ### Job matrix
 
-| Job | PRs → `feature/**/branch` | PRs → `main` |
-|-----|--------------------------|--------------|
+| Job | PRs → `feature/**/branch` | PRs → `main` (feature, hotfix, chore) |
+|-----|--------------------------|---------------------------------------|
 | `design-content-check` | Only when `head_ref` ends in `/000_design` | — |
-| `spec-ref` | ✅ | ✅ |
+| `spec-ref` | ✅ | ✅ (skipped for `chore/**` and `fix/**` — no spec required) |
 | `backend-cov-unit` | ✅ | — |
 | `backend-cov-full` | — | ✅ (unit + integration) |
 | `frontend-cov` | ✅ | ✅ |
@@ -78,6 +90,8 @@ on:
 **Why split coverage:** integration tests spin up PostgreSQL via Testcontainers and add ~2–3 minutes per run. Running them on every task PR would create unnecessary friction during active development. The full suite runs once when the feature lands on `main`.
 
 **Why no ADR check on feature PRs:** the ADR consistency check calls the Claude API and is meaningful at the integration boundary (when code reaches `main`), not during incremental task development.
+
+**Chore and hotfix branches skip `spec-ref`:** these branch types have no associated spec directory, so the spec-ref check is explicitly skipped when the PR source branch starts with `chore/` or `fix/`. All other full-suite jobs still run.
 
 ### Job conditions (GitHub Actions `if` expressions)
 
@@ -93,9 +107,16 @@ backend-cov-full:
 
 adr-consistency:
   if: github.base_ref == 'main'
+
+spec-ref:
+  if: >
+    !startsWith(github.head_ref, 'chore/') &&
+    !startsWith(github.head_ref, 'fix/')
 ```
 
-`spec-ref` and `frontend-cov` run unconditionally (no `if`).
+`frontend-cov` runs unconditionally (no `if`).
+
+`spec-ref` is skipped for `chore/**` and `fix/**` branches because those branch types have no associated spec document.
 
 ### Design content check implementation
 

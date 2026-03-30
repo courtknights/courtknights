@@ -40,7 +40,7 @@ The current development model uses a flat branch-per-task structure where every 
 
 ### In scope
 
-- Branch naming convention for feature, design, task, and hotfix branches.
+- Branch naming convention for feature, design, task, hotfix, and chore branches.
 - Merge strategy per branch direction (squash vs merge commit).
 - Two-layer CI: reduced check set for PRs targeting `feature/**`, full check set for PRs targeting `main`.
 - CI job that enforces the 000-design branch content rule (only `docs/specs/` changes allowed).
@@ -74,4 +74,5 @@ The current development model uses a flat branch-per-task structure where every 
 | Design branch | First task branch (`feature/CK-XXX/000_design`) that only contains spec documents under `docs/specs/`; merges into the feature branch. |
 | Task branch | Short-lived branch (`feature/CK-XXX/NNN_description`) for a single atomic task; branches from the feature branch and merges back via squash. |
 | Hotfix branch | Short-lived branch (`fix/CK-XXX_description`) for urgent production fixes; branches from `main` and merges directly back to `main`. |
+| Chore branch | Short-lived branch (`chore/CK-XXX_description`) for minor maintenance work (e.g. improving test coverage, updating docs, small refactors) that requires no spec or design phase and is not a bug fix; branches from `main` and merges directly back to `main` via squash. |
 | Two-layer CI | CI model where PRs targeting `feature/**` run a fast subset of checks (unit only, no ADR), and PRs targeting `main` run the full suite. |

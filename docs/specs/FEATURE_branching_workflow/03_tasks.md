@@ -27,15 +27,17 @@
 - **Layer(s):** docs
 - **Description:**
   Write `docs/decisions/ADR-012_branching-strategy.md` documenting:
-  - The hierarchical feature branch model (`feature/CK-XXX/branch`, `000_design`, task branches, hotfixes).
-  - Merge strategy per direction (squash task→feature, merge commit feature→main).
+  - The hierarchical feature branch model (`feature/CK-XXX/branch`, `000_design`, task branches, hotfixes, chores).
+  - Merge strategy per direction (squash task→feature, merge commit feature→main, squash for hotfix/chore→main).
   - The two-layer CI rationale (fast checks on task PRs, full suite on feature→main).
+  - The chore branch exception: when to use it, what CI it runs, and that no spec is required.
   - Consequences and trade-offs.
 - **Done when:**
   - [ ] `docs/decisions/ADR-012_branching-strategy.md` exists with status `Accepted`.
-  - [ ] All four branch types are described with their naming pattern and lifecycle.
+  - [ ] All five branch types are described with their naming pattern and lifecycle.
   - [ ] Merge strategy is explicit for each direction.
   - [ ] Two-layer CI rationale is documented.
+  - [ ] Chore branch exception (no spec, full CI, squash to `main`) is documented.
 
 ---
 
@@ -52,12 +54,15 @@
     - `backend-cov-unit`: runs unit tests only (`check_backend_coverage.sh` — phase 1 only); active on PRs targeting `feature/**`.
     - `backend-cov-full`: runs unit + integration (`check_backend_coverage.sh` — both phases); active on PRs targeting `main`.
   - Add `if` guards to `adr-consistency` so it only runs when `github.base_ref == 'main'`.
-  - `spec-ref` and `frontend-cov` remain unconditional.
+  - Add `if` guard to `spec-ref` so it is skipped when the source branch starts with `chore/` or `fix/` (those branch types have no spec).
+  - `frontend-cov` remains unconditional.
   - Pass the correct environment variables to each job.
   - Update `infra/cicd/check_backend_coverage.sh` to accept a `PHASES` env var (`unit`, `integration`, or `all`, default `all`) so the same script is reused for both jobs.
 - **Done when:**
   - [ ] A PR from a task branch to `feature/**/branch` triggers `spec-ref`, `backend-cov-unit`, `frontend-cov` — and nothing else.
   - [ ] A PR from `feature/**/branch` to `main` triggers `spec-ref`, `backend-cov-full`, `frontend-cov`, `adr-consistency`.
+  - [ ] A PR from a `chore/**` branch to `main` triggers `backend-cov-full`, `frontend-cov`, `adr-consistency` — `spec-ref` is skipped.
+  - [ ] A PR from a `fix/**` branch to `main` triggers `backend-cov-full`, `frontend-cov`, `adr-consistency` — `spec-ref` is skipped.
   - [ ] `backend-cov-unit` runs only unit tests (no Docker / Testcontainers required).
   - [ ] `backend-cov-full` runs both unit and integration tests.
   - [ ] The `adr-consistency` job does not appear in task-level PRs.
@@ -92,15 +97,16 @@
 - **Layer(s):** docs
 - **Description:**
   Replace the Git Conventions section in `CLAUDE.md` with the new branching model:
-  - Document all four branch types with their naming pattern and origin/target.
+  - Document all five branch types with their naming pattern and origin/target.
   - Document the merge strategy for each direction.
   - Update the commit message convention to reference the new branch types.
   - Add a note that task branches target the feature branch, not `main`.
-  - Add hotfix convention.
+  - Add hotfix and chore conventions, including the chore exception (no spec required).
 - **Done when:**
-  - [ ] `CLAUDE.md` Git Conventions section describes all four branch types.
+  - [ ] `CLAUDE.md` Git Conventions section describes all five branch types.
   - [ ] Merge strategies (squash / merge commit) are explicit.
   - [ ] The hotfix pattern is documented.
+  - [ ] The chore pattern and exception (no spec, full CI) are documented.
   - [ ] No references to the old flat branch model remain.
 
 ---
@@ -115,14 +121,16 @@
   Create `CONTRIBUTING.md` at the repository root covering:
   - Prerequisites and local setup (Go, Node.js, Docker, PostgreSQL via Testcontainers).
   - The SDD workflow: spec → design branch → task branches → feature branch → `main`.
-  - Branch naming conventions for all four branch types with examples.
+  - Branch naming conventions for all five branch types with examples.
+  - The chore branch exception: when to use it vs. opening a feature, and the fact that no spec is required.
   - Commit message format (`[CK-NNN] message` — imperative mood, present tense).
-  - PR requirements: spec reference line, CI green, one approval for task→feature, one approval for feature→main.
+  - PR requirements: spec reference line (waived for chore/fix), CI green, one approval for task→feature, one approval for feature→main/chore→main.
   - How to run each CI check locally (`make cicd-spec-ref`, `make cicd-backend-cov`, etc.).
   - Where to open issues and how they relate to the task breakdown (`agent-task` label).
 - **Done when:**
   - [ ] `CONTRIBUTING.md` exists at the repository root.
-  - [ ] All four branch types are documented with examples.
+  - [ ] All five branch types are documented with examples.
+  - [ ] Chore branch exception is documented with guidance on when to use it.
   - [ ] Local setup instructions are complete and accurate.
   - [ ] CI check local execution is documented.
   - [ ] PR requirements are explicit.
