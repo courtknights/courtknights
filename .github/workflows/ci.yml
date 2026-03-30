@@ -107,6 +107,27 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
+  design-content-check:
+    name: Design branch content check
+    runs-on: ubuntu-latest
+    if: endsWith(github.head_ref, '/000_design')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check only docs/specs/ is modified
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -vE '^docs/specs/' || true)
+          if [ -n "$CHANGED" ]; then
+            echo "ERROR: design branch may only modify files under docs/specs/"
+            echo "Offending files:"
+            echo "$CHANGED"
+            exit 1
+          fi
+          echo "OK: all changes are under docs/specs/"
+
   adr-consistency:
     name: ADR consistency check
     runs-on: ubuntu-latest
