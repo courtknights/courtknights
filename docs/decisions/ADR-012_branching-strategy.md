@@ -61,6 +61,19 @@ Typical candidates: improving test coverage, updating documentation, small refac
 
 Chore branches branch from `main` and squash-merge back to `main`. They run the full CI suite. A GitHub Issue is required for traceability, but no `docs/specs/FEATURE_xxx/` directory is created. The `spec-ref` CI job is skipped for chore and hotfix branches.
 
+### Pull request naming convention
+
+| PR direction | Title format | Example |
+|--------------|--------------|---------|
+| Task → `feature/**/branch` | GitHub issue title (verbatim) | `[CK-64] TASK-001: Create ADR-012 (branching strategy)` |
+| Feature branch → `main` | `[CK-{issue}] {title}` | `[CK-64] branching strategy and contribution docs` |
+| Chore → `main` | `[CK-{issue}] {title}` | `[CK-66] improve backend test coverage` |
+| Hotfix → `main` | `[CK-{issue}] {title}` | `[CK-99] fix nil pointer in league handler` |
+
+Where `{issue}` is the GitHub Issue number associated with the feature branch, chore, or hotfix — not the individual task issue number.
+
+For task PRs the title is the verbatim GitHub issue title, so the issue and PR are trivially linked without any formatting ceremony.
+
 ### Two-layer CI
 
 PRs targeting `feature/**/branch` run a fast subset of checks (unit tests only, no Testcontainers, no ADR consistency check). PRs targeting `main` run the full suite.
