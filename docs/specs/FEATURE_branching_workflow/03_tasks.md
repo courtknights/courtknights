@@ -21,7 +21,7 @@
 
 ### TASK-001: Create ADR-012 (branching strategy)
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#68](https://github.com/courtknights/courtknights/issues/68)
 - **Branch:** `feature/CK-64/001_adr-branching`
 - **Depends on:** none
 - **Layer(s):** docs
@@ -43,7 +43,7 @@
 
 ### TASK-002: Update CI workflow — two-layer model
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#69](https://github.com/courtknights/courtknights/issues/69)
 - **Branch:** `feature/CK-64/002_ci-two-layer`
 - **Depends on:** TASK-001
 - **Layer(s):** infra
@@ -71,7 +71,7 @@
 
 ### TASK-003: Add design-branch content check to CI
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#70](https://github.com/courtknights/courtknights/issues/70)
 - **Branch:** `feature/CK-64/003_ci-design-check`
 - **Depends on:** TASK-002
 - **Layer(s):** infra
@@ -91,7 +91,7 @@
 
 ### TASK-004: Update CLAUDE.md
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#71](https://github.com/courtknights/courtknights/issues/71)
 - **Branch:** `feature/CK-64/004_update-claude-md`
 - **Depends on:** TASK-001
 - **Layer(s):** docs
@@ -113,7 +113,7 @@
 
 ### TASK-005: Write CONTRIBUTING.md
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#72](https://github.com/courtknights/courtknights/issues/72)
 - **Branch:** `feature/CK-64/005_contributing`
 - **Depends on:** TASK-001, TASK-004
 - **Layer(s):** docs
@@ -139,7 +139,7 @@
 
 ### TASK-006: Write README.md
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#73](https://github.com/courtknights/courtknights/issues/73)
 - **Branch:** `feature/CK-64/006_readme`
 - **Depends on:** TASK-005
 - **Layer(s):** docs
@@ -162,7 +162,7 @@
 
 ### TASK-007: Add GitHub ruleset definitions and apply-rulesets make target
 
-- **GitHub Issue:** TBD
+- **GitHub Issue:** [#74](https://github.com/courtknights/courtknights/issues/74)
 - **Branch:** `feature/CK-64/007_rulesets`
 - **Depends on:** TASK-001
 - **Layer(s):** infra
