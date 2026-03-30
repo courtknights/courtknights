@@ -165,7 +165,7 @@ infra/
 - Block force pushes.
 - Block branch deletion.
 
-**`feature-branch.json`** — protects `feature/**/branch` (pattern: `feature/***/branch`):
+**`feature-branch.json`** — protects `feature/**/branch` (pattern: `feature/**/branch`):
 - Require PR before merging.
 - Require at least 1 approval.
 - Require CI status checks: `spec-ref`, `backend-cov-unit`, `frontend-cov`.

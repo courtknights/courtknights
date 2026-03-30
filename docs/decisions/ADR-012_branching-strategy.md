@@ -115,7 +115,7 @@ PRs targeting `feature/**/branch` run a fast subset of checks (unit tests only, 
 
 - More branch types to learn; contributors need to read `CONTRIBUTING.md` to understand the model.
 - Feature branches are long-lived and must be kept in sync with `main` manually (rebase or merge) when `main` advances during feature development.
-- Branch protection for `feature/**/branch` requires a wildcard pattern; GitHub's ruleset engine must support `feature/***/branch` glob syntax.
+- Branch protection for `feature/**/branch` requires a wildcard pattern; GitHub's ruleset engine must support `feature/**/branch` glob syntax.
 
 ---
 
