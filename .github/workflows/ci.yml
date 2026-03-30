@@ -29,6 +29,8 @@ jobs:
   backend-cov:
     name: Backend coverage check
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
     steps:
       - uses: actions/checkout@v4
 
