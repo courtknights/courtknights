@@ -157,3 +157,24 @@
   - [ ] Architecture overview describes all workspaces (`api/`, `web/`, `db/`, `infra/`, `e2e/`).
   - [ ] Quick-start commands are correct and tested.
   - [ ] Links to CONTRIBUTING.md and LICENSE are valid.
+
+---
+
+### TASK-007: Add GitHub ruleset definitions and apply-rulesets make target
+
+- **GitHub Issue:** TBD
+- **Branch:** `feature/CK-64/007_rulesets`
+- **Depends on:** TASK-001
+- **Layer(s):** infra
+- **Description:**
+  Store GitHub branch protection rulesets as JSON in `infra/rulesets/` and expose an `apply-rulesets` target in `infra/Makefile` to apply them via the `gh` CLI:
+  - Create `infra/rulesets/main.json` with the ruleset for `main`: require PR, require 1 approval, require status checks (`spec-ref`, `backend-cov-full`, `frontend-cov`, `adr-consistency`), block force push and deletion.
+  - Create `infra/rulesets/feature-branch.json` with the ruleset for `feature/**/branch` (pattern: `feature/***/branch`): require PR, require 1 approval, require status checks (`spec-ref`, `backend-cov-unit`, `frontend-cov`), block force push and deletion.
+  - Add `apply-rulesets` target to `infra/Makefile`: idempotent — creates the ruleset if absent, updates it if already present (matched by name).
+  - Add `apply-rulesets` to the root `Makefile` dispatcher.
+  - Document the `GITHUB_REPO` override and the required token permissions in `CONTRIBUTING.md` (admin setup section).
+- **Done when:**
+  - [ ] `infra/rulesets/main.json` and `infra/rulesets/feature-branch.json` exist with valid ruleset JSON.
+  - [ ] `make apply-rulesets` runs without error against the repository (with a suitably permissioned token).
+  - [ ] Running `make apply-rulesets` a second time is idempotent (no error, no duplicate ruleset).
+  - [ ] `CONTRIBUTING.md` documents the admin setup step and token requirement.

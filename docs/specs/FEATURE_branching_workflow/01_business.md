@@ -48,11 +48,11 @@ The current development model uses a flat branch-per-task structure where every 
 - Update `CLAUDE.md` with the new Git Conventions section.
 - `CONTRIBUTING.md` at the repository root.
 - `README.md` at the repository root.
+- GitHub ruleset definitions stored in `infra/rulesets/` and applied via `make apply-rulesets` in the `infra/` workspace.
 
 ### Out of scope
 
 - Automated branch creation scripts or GitHub CLI wrappers.
-- GitHub branch protection rule configuration (applied manually by the repository admin).
 - Semantic versioning or release automation.
 - Changelog generation.
 
@@ -62,7 +62,7 @@ The current development model uses a flat branch-per-task structure where every 
 
 - The CI infrastructure (`infra/cicd/`, `.github/workflows/ci.yml`) introduced in `FEATURE_ci_checks` is the base on which the two-layer model is built.
 - GitHub Actions `pull_request` trigger supports filtering by base branch pattern (`feature/**`).
-- Branch protection for `feature/**/branch` branches is configured manually by the repository admin after this feature is merged.
+- `gh` CLI is available in the environment where `make apply-rulesets` is run, authenticated with a token that has `administration: write` on the repository.
 
 ---
 

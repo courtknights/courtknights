@@ -10,11 +10,12 @@
 
 ## Overview
 
-This feature introduces a structured branching model and updates the CI pipeline to enforce it. No application code is added or modified. The changes touch three areas:
+This feature introduces a structured branching model and updates the CI pipeline to enforce it. No application code is added or modified. The changes touch four areas:
 
 1. **Branch naming convention** — documented in `ADR-012`, `CLAUDE.md`, and `CONTRIBUTING.md`.
 2. **CI workflow** — `.github/workflows/ci.yml` is updated to trigger on `feature/**` branches and apply a conditional job set based on the PR target.
 3. **Repository documentation** — `CONTRIBUTING.md` and `README.md` are created at the repository root.
+4. **Ruleset configuration** — GitHub ruleset definitions stored in `infra/rulesets/` and applied via `make apply-rulesets`.
 
 ---
 
@@ -141,6 +142,67 @@ design-content-check:
 
 ---
 
+## Ruleset configuration
+
+### Approach
+
+GitHub ruleset definitions are stored as JSON files in `infra/rulesets/`. A `make apply-rulesets` target in `infra/Makefile` applies them via the GitHub API using the `gh` CLI. This keeps branch protection rules in version control, reviewable via PR, without requiring any workflow automation.
+
+```
+infra/
+  rulesets/
+    main.json                ← protection rules for main
+    feature-branch.json      ← protection rules for feature/**/branch
+  Makefile                   ← new apply-rulesets target
+```
+
+### Ruleset definitions
+
+**`main.json`** — protects `main`:
+- Require PR before merging (no direct pushes).
+- Require at least 1 approval.
+- Require all CI status checks to pass (`spec-ref`, `backend-cov-full`, `frontend-cov`, `adr-consistency`).
+- Block force pushes.
+- Block branch deletion.
+
+**`feature-branch.json`** — protects `feature/**/branch` (pattern: `feature/***/branch`):
+- Require PR before merging.
+- Require at least 1 approval.
+- Require CI status checks: `spec-ref`, `backend-cov-unit`, `frontend-cov`.
+- Block force pushes.
+- Block branch deletion.
+
+### Makefile target
+
+```makefile
+GITHUB_REPO ?= courtknights/courtknights
+
+.PHONY: apply-rulesets
+apply-rulesets: ## Apply GitHub branch rulesets from infra/rulesets/
+	@echo "Applying ruleset: main"
+	@gh api repos/$(GITHUB_REPO)/rulesets \
+	    --method POST --input infra/rulesets/main.json \
+	    --silent || \
+	  gh api repos/$(GITHUB_REPO)/rulesets/$(shell gh api repos/$(GITHUB_REPO)/rulesets --jq '.[] | select(.name=="main") | .id') \
+	    --method PUT --input infra/rulesets/main.json --silent
+	@echo "Applying ruleset: feature-branch"
+	@gh api repos/$(GITHUB_REPO)/rulesets \
+	    --method POST --input infra/rulesets/feature-branch.json \
+	    --silent || \
+	  gh api repos/$(GITHUB_REPO)/rulesets/$(shell gh api repos/$(GITHUB_REPO)/rulesets --jq '.[] | select(.name=="feature-branch") | .id') \
+	    --method PUT --input infra/rulesets/feature-branch.json --silent
+	@echo "Rulesets applied."
+```
+
+The target is idempotent: it attempts to create the ruleset and falls back to an update if one with that name already exists. `GITHUB_REPO` can be overridden at call time: `make apply-rulesets GITHUB_REPO=org/repo`.
+
+### Prerequisites
+
+- `gh` CLI installed and authenticated.
+- Token must have `administration: write` permission on the repository (a fine-grained PAT or GitHub App token — the default `GITHUB_TOKEN` in Actions does not have this scope).
+
+---
+
 ## Files modified
 
 | File | Change |
@@ -150,6 +212,9 @@ design-content-check:
 | `docs/decisions/ADR-012_branching-strategy.md` | New ADR |
 | `CONTRIBUTING.md` | New file at repo root |
 | `README.md` | New file at repo root |
+| `infra/rulesets/main.json` | New file — ruleset definition for `main` |
+| `infra/rulesets/feature-branch.json` | New file — ruleset definition for `feature/**/branch` |
+| `infra/Makefile` | New `apply-rulesets` target |
 
 ---
 
@@ -165,7 +230,7 @@ design-content-check:
 - Feature progress is visible as a named branch in the repository.
 - Task PR CI is faster (no Testcontainers, no Claude API call).
 - The full integration suite still runs before any code reaches `main`.
-- Branch protection must be configured manually for both `main` and `feature/**/branch`.
+- Branch protection rules are stored in `infra/rulesets/` and applied via `make apply-rulesets`; changes to rules go through a PR like any other code.
 
 ---
 
