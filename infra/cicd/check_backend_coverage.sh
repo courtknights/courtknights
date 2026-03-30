@@ -3,27 +3,27 @@ set -euo pipefail
 
 # check_backend_coverage.sh — Backend per-layer coverage check
 #
-# Runs Go unit and integration tests with coverage, then verifies that each
+# Runs Go unit and/or integration tests with coverage, then verifies that each
 # layer meets its minimum threshold defined in docs/testing/strategy.md:
 #
 #   Domain:         >= 90%  (unit)
 #   Application:    >= 80%  (unit)
 #   Infrastructure: >= 70%  (integration)
-#   API (handlers): >= 80%  (unit + integration merged)
+#   API (handlers): >= 80%  (unit + integration merged; unit only when PHASES=unit)
 #
 # Thresholds have a warning zone of 10 percentage points below the minimum:
 #   - actual >= threshold              → OK
 #   - threshold-10 <= actual < threshold → WARNING (exits 0, posts PR comment)
 #   - actual < threshold-10            → FAIL (exits 1)
 #
-# Requirements:
-#   - Go toolchain available in PATH
-#   - Docker available (required by Testcontainers for integration tests)
-#
-# Optional environment variables (CI only):
-#   PR_NUMBER          — pull request number; enables PR comment on warnings
+# Environment variables:
+#   PHASES             — which test phases to run: "unit" | "all" (default: all)
+#                        "unit" skips integration tests and the infrastructure check.
+#   PR_NUMBER          — pull request number; enables PR comment on warnings (CI only)
 #   GITHUB_REPOSITORY  — owner/repo (e.g. courtknights/courtknights)
 #   GITHUB_TOKEN       — GitHub token (needed by gh to post comments)
+
+PHASES="${PHASES:-all}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 API_DIR="${REPO_ROOT}/api"
@@ -58,28 +58,32 @@ WARNED=0
 WARN_ROWS=""
 
 # ---------------------------------------------------------------------------
-# Phase 1: Unit tests
+# Phase 1: Unit tests (always runs)
 # ---------------------------------------------------------------------------
 echo "=== Phase 1: Running unit tests ==="
 make -C "$REPO_ROOT" test-cov COV_OUT="$COV_UNIT"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Phase 2: Integration tests
+# Phase 2: Integration tests (skipped when PHASES=unit)
 # ---------------------------------------------------------------------------
-echo "=== Phase 2: Running integration tests ==="
-make -C "$REPO_ROOT" test-int-cov COV_OUT="$COV_INT"
-echo ""
+if [ "$PHASES" = "all" ]; then
+    echo "=== Phase 2: Running integration tests ==="
+    make -C "$REPO_ROOT" test-int-cov COV_OUT="$COV_INT"
+    echo ""
 
-# ---------------------------------------------------------------------------
-# Merge unit + integration profiles for the API handlers layer
-# ---------------------------------------------------------------------------
-echo "=== Merging profiles for API layer ==="
-head -1 "$COV_UNIT" > "$COV_API"
-grep -v "^mode:" "$COV_UNIT" >> "$COV_API"
-grep -v "^mode:" "$COV_INT" >> "$COV_API"
-echo "Merged unit + integration into API profile."
-echo ""
+    echo "=== Merging profiles for API layer ==="
+    head -1 "$COV_UNIT" > "$COV_API"
+    grep -v "^mode:" "$COV_UNIT" >> "$COV_API"
+    grep -v "^mode:" "$COV_INT" >> "$COV_API"
+    echo "Merged unit + integration into API profile."
+    echo ""
+else
+    echo "=== Phase 2: Skipped (PHASES=unit) ==="
+    echo ""
+    # API layer uses unit profile only
+    cp "$COV_UNIT" "$COV_API"
+fi
 
 # ---------------------------------------------------------------------------
 # Helper: check coverage for a single layer
@@ -140,10 +144,16 @@ check_layer() {
 # Check each layer against its threshold
 # ---------------------------------------------------------------------------
 echo "=== Checking layer coverage ==="
-check_layer "domain"         "$PREFIX_DOMAIN"         "$COV_UNIT" "$THRESHOLD_DOMAIN"
-check_layer "application"    "$PREFIX_APPLICATION"    "$COV_UNIT" "$THRESHOLD_APPLICATION"
-check_layer "infrastructure" "$PREFIX_INFRASTRUCTURE" "$COV_INT"  "$THRESHOLD_INFRASTRUCTURE"
-check_layer "api"            "$PREFIX_API"            "$COV_API"  "$THRESHOLD_API"
+check_layer "domain"      "$PREFIX_DOMAIN"      "$COV_UNIT" "$THRESHOLD_DOMAIN"
+check_layer "application" "$PREFIX_APPLICATION" "$COV_UNIT" "$THRESHOLD_APPLICATION"
+
+if [ "$PHASES" = "all" ]; then
+    check_layer "infrastructure" "$PREFIX_INFRASTRUCTURE" "$COV_INT" "$THRESHOLD_INFRASTRUCTURE"
+else
+    echo "SKIP infrastructure: integration tests not run (PHASES=unit)"
+fi
+
+check_layer "api" "$PREFIX_API" "$COV_API" "$THRESHOLD_API"
 echo ""
 
 # ---------------------------------------------------------------------------
