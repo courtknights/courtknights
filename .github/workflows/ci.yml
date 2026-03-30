@@ -2,7 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/**/branch'
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 concurrency:
@@ -17,6 +19,9 @@ jobs:
   spec-ref:
     name: Spec reference check
     runs-on: ubuntu-latest
+    if: |
+      !startsWith(github.head_ref, 'chore/') &&
+      !startsWith(github.head_ref, 'fix/')
     steps:
       - uses: actions/checkout@v4
 
@@ -26,9 +31,10 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
 
-  backend-cov:
-    name: Backend coverage check
+  backend-cov-unit:
+    name: Backend coverage check (unit)
     runs-on: ubuntu-latest
+    if: startsWith(github.base_ref, 'feature/')
     env:
       GOTOOLCHAIN: local
     steps:
@@ -39,9 +45,32 @@ jobs:
         with:
           go-version-file: go.work
 
-      - name: Run backend coverage check
+      - name: Run backend coverage check (unit only)
         run: make cicd-backend-cov
         env:
+          PHASES: unit
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+  backend-cov-full:
+    name: Backend coverage check (unit + integration)
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main'
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+
+      - name: Run backend coverage check (unit + integration)
+        run: make cicd-backend-cov
+        env:
+          PHASES: all
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -81,6 +110,7 @@ jobs:
   adr-consistency:
     name: ADR consistency check
     runs-on: ubuntu-latest
+    if: github.base_ref == 'main'
     steps:
       - uses: actions/checkout@v4
 
