@@ -45,8 +45,15 @@ case "$SPEC_PATH" in
         ;;
 esac
 
-# 5. Derive the spec directory from the file path
-SPEC_DIR=$(dirname "$SPEC_PATH")
+# 5. Derive the spec directory from the path
+# Strip trailing slashes first; if the result has no .md extension treat it
+# as a directory path directly, otherwise take dirname of the file path.
+SPEC_PATH="${SPEC_PATH%/}"
+if [[ "$SPEC_PATH" == *.md ]]; then
+    SPEC_DIR=$(dirname "$SPEC_PATH")
+else
+    SPEC_DIR="$SPEC_PATH"
+fi
 
 # 6. Check that 05_acceptance.md exists in the spec directory
 ACCEPTANCE_FILE="${REPO_ROOT}/${SPEC_DIR}/05_acceptance.md"
