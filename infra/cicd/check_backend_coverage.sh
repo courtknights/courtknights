@@ -11,9 +11,19 @@ set -euo pipefail
 #   Infrastructure: >= 70%  (integration)
 #   API (handlers): >= 80%  (unit + integration merged)
 #
+# Thresholds have a warning zone of 10 percentage points below the minimum:
+#   - actual >= threshold              → OK
+#   - threshold-10 <= actual < threshold → WARNING (exits 0, posts PR comment)
+#   - actual < threshold-10            → FAIL (exits 1)
+#
 # Requirements:
 #   - Go toolchain available in PATH
 #   - Docker available (required by Testcontainers for integration tests)
+#
+# Optional environment variables (CI only):
+#   PR_NUMBER          — pull request number; enables PR comment on warnings
+#   GITHUB_REPOSITORY  — owner/repo (e.g. courtknights/courtknights)
+#   GITHUB_TOKEN       — GitHub token (needed by gh to post comments)
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 API_DIR="${REPO_ROOT}/api"
@@ -23,6 +33,9 @@ THRESHOLD_DOMAIN=90
 THRESHOLD_APPLICATION=80
 THRESHOLD_INFRASTRUCTURE=70
 THRESHOLD_API=80
+
+# Warning zone: 10 percentage points below each threshold
+WARNING_MARGIN=10
 
 # Package prefixes as they appear in coverage profiles
 MODULE="github.com/courtknights/courtknights"
@@ -40,6 +53,9 @@ COV_INT="${COV_TMPDIR}/coverage_int.out"
 COV_API="${COV_TMPDIR}/coverage_api.out"
 
 FAILED=0
+WARNED=0
+# Accumulated markdown rows for the warning comment (pipe-separated)
+WARN_ROWS=""
 
 # ---------------------------------------------------------------------------
 # Phase 1: Unit tests
@@ -79,6 +95,8 @@ check_layer() {
     local prefix="$2"
     local coverage_file="$3"
     local threshold="$4"
+    local warn_threshold
+    warn_threshold=$(awk -v t="$threshold" -v m="$WARNING_MARGIN" 'BEGIN { print t - m }')
     local filtered="${COV_TMPDIR}/filtered_${layer_name}.out"
 
     # Build a filtered profile: mode line + lines matching this layer's prefix
@@ -96,14 +114,24 @@ check_layer() {
     local actual
     actual=$(go tool cover -func="$filtered" | grep "^total:" | awk '{print $3}' | tr -d '%')
 
-    # Floating-point comparison via awk
-    local ok
-    ok=$(awk -v a="$actual" -v t="$threshold" 'BEGIN { print (a + 0 >= t + 0) ? "1" : "0" }')
+    # Three-way comparison via awk: ok / warn / fail
+    local status
+    status=$(awk -v a="$actual" -v t="$threshold" -v w="$warn_threshold" 'BEGIN {
+        if (a + 0 >= t + 0)       print "ok"
+        else if (a + 0 >= w + 0)  print "warn"
+        else                       print "fail"
+    }')
 
-    if [ "$ok" -eq 1 ]; then
+    if [ "$status" = "ok" ]; then
         printf "OK   %-16s %s%% >= %s%%\n" "${layer_name}:" "$actual" "$threshold"
+    elif [ "$status" = "warn" ]; then
+        printf "WARN %-16s %s%% (threshold %s%%, warning zone >= %s%%)\n" \
+            "${layer_name}:" "$actual" "$threshold" "$warn_threshold"
+        WARNED=1
+        WARN_ROWS="${WARN_ROWS}| \`${layer_name}\` | ${actual}% | ${threshold}% | ${warn_threshold}% |\n"
     else
-        printf "FAIL %-16s %s%% < %s%%\n" "${layer_name}:" "$actual" "$threshold"
+        printf "FAIL %-16s %s%% < %s%% (warning zone >= %s%%)\n" \
+            "${layer_name}:" "$actual" "$threshold" "$warn_threshold"
         FAILED=1
     fi
 }
@@ -118,10 +146,37 @@ check_layer "infrastructure" "$PREFIX_INFRASTRUCTURE" "$COV_INT"  "$THRESHOLD_IN
 check_layer "api"            "$PREFIX_API"            "$COV_API"  "$THRESHOLD_API"
 echo ""
 
+# ---------------------------------------------------------------------------
+# Post PR comment for warnings (CI only — requires PR_NUMBER and gh CLI)
+# ---------------------------------------------------------------------------
+if [ "$WARNED" -ne 0 ] && [ -n "${PR_NUMBER:-}" ]; then
+    COMMENT_BODY="## Backend Coverage Warning
+
+One or more layers are in the warning zone (within ${WARNING_MARGIN}% of their threshold).
+Consider opening a task to improve coverage before it drops below the minimum.
+
+| Layer | Actual | Threshold | Warning zone |
+|-------|--------|-----------|--------------|
+$(printf '%b' "$WARN_ROWS")
+> A layer enters **error** state when it falls below the warning zone."
+
+    gh pr comment "$PR_NUMBER" \
+        --repo "${GITHUB_REPOSITORY:-}" \
+        --body "$COMMENT_BODY"
+    echo "Warning comment posted to PR #${PR_NUMBER}."
+fi
+
+# ---------------------------------------------------------------------------
+# Final result
+# ---------------------------------------------------------------------------
 if [ "$FAILED" -ne 0 ]; then
     echo "Coverage check FAILED — one or more layers are below their threshold."
     exit 1
 fi
 
-echo "Coverage check PASSED — all layers meet their thresholds."
+if [ "$WARNED" -ne 0 ]; then
+    echo "Coverage check PASSED with warnings — some layers are in the warning zone."
+else
+    echo "Coverage check PASSED — all layers meet their thresholds."
+fi
 exit 0

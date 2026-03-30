@@ -17,6 +17,7 @@ Required environment variables:
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -117,8 +118,11 @@ def call_claude(adrs: dict[str, str], diff: str) -> dict:
     )
 
     raw = response.content[0].text
+    # Strip optional markdown code fences (```json ... ``` or ``` ... ```)
+    stripped = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
+    stripped = re.sub(r"\s*```$", "", stripped)
     try:
-        return json.loads(raw)
+        return json.loads(stripped)
     except json.JSONDecodeError as exc:
         print(f"ERROR: Claude returned non-JSON output: {exc}", file=sys.stderr)
         print(f"Raw response:\n{raw}", file=sys.stderr)
