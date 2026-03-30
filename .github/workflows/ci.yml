@@ -37,7 +37,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: api/go.mod
+          go-version-file: go.work
 
       - name: Run backend coverage check
         run: make cicd-backend-cov
@@ -48,15 +48,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check frontend workspace
+        id: check-web
+        run: |
+          if [ ! -f web/package.json ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Frontend workspace not yet initialized — skipping coverage check."
+          fi
+
       - name: Set up Node.js
+        if: steps.check-web.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install frontend dependencies
+        if: steps.check-web.outputs.skip != 'true'
         run: make web-install
 
       - name: Run frontend coverage check
+        if: steps.check-web.outputs.skip != 'true'
         run: make cicd-frontend-cov
 
   adr-consistency:
