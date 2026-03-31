@@ -201,6 +201,17 @@ A chore branch is for minor maintenance work that does not introduce new product
 - Task commit example: `[CK-68] add ADR-012 hierarchical branching strategy`
 - Chore commit example: `[CK-66] upgrade golangci-lint to v1.58`
 
+### GitHub Issues and sub-issues
+
+Each feature has a parent GitHub Issue (the feature issue). Every task issue created from `03_tasks.md` must be registered as a sub-issue of its feature issue using the GitHub sub-issues API:
+
+```bash
+gh api repos/{owner}/{repo}/issues/{feature-issue}/sub_issues \
+  --method POST --field sub_issue_id={task-issue-id}
+```
+
+This links task progress directly to the feature issue in the GitHub UI. Task issues close automatically when the feature branch merges to `main` (via `Closes #N` in the feature PR body). Do not close them manually before that point.
+
 ### PR requirements
 
 Every PR must:
