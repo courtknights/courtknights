@@ -174,12 +174,39 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 
 ## Git Conventions
 
-- Branch naming: `CK-{issue-number}_{short-description}` (e.g. `CK-1_sdd-scaffolding`)
-- Commit messages: `[CK-{issue-number}] {message}` — imperative mood, present tense (e.g. `[CK-1] add spec template for league creation`)
-- Every PR must:
-  - Include `Closes #N` (exact syntax) in the PR **body** — this is what GitHub uses to auto-close the issue on merge. Do not use "References" or "See #N"; only `Closes`, `Fixes`, or `Resolves` trigger auto-close.
-  - Reference the related spec (`Spec: docs/specs/...`)
-  - Pass all CI checks before merge
+### Branch types
+
+CourtKnights uses a hierarchical branching model (ADR-012). Five branch types exist:
+
+| Type | Pattern | Branches from | Merges to | Merge strategy |
+|------|---------|---------------|-----------|----------------|
+| Feature | `feature/CK-XXX/branch` | `main` | `main` | Merge commit |
+| Design | `feature/CK-XXX/000_design` | `feature/CK-XXX/branch` | `feature/CK-XXX/branch` | Squash |
+| Task | `feature/CK-XXX/NNN_description` | `feature/CK-XXX/branch` | `feature/CK-XXX/branch` | Squash |
+| Hotfix | `fix/CK-XXX_description` | `main` | `main` | Squash |
+| Chore | `chore/CK-XXX_description` | `main` | `main` | Squash |
+
+Where `NNN` matches the `TASK-NNN` number from `03_tasks.md` (zero-padded to three digits).
+
+**Important:** task branches target the feature branch (`feature/CK-XXX/branch`), not `main` directly.
+
+### Chore branch exception
+
+A chore branch is for minor maintenance work that does not introduce new product functionality and does not require a spec (dependency upgrades, small refactors, documentation fixes, CI maintenance). A GitHub Issue is still required for traceability. The `spec-ref` CI job is skipped automatically for `chore/**` and `fix/**` branches.
+
+### Commit messages
+
+`[CK-{issue-number}] {message}` — imperative mood, present tense.
+
+- Task commit example: `[CK-68] add ADR-012 hierarchical branching strategy`
+- Chore commit example: `[CK-66] upgrade golangci-lint to v1.58`
+
+### PR requirements
+
+Every PR must:
+- Include `Closes #N` (exact syntax) in the PR **body** — this triggers GitHub's auto-close on merge. `References` or `See #N` do not close the issue.
+- Include `Spec: docs/specs/...` in the PR body (waived automatically for `chore/**` and `fix/**` branches).
+- Pass all CI checks before merge.
 
 ---
 
