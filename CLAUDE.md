@@ -177,7 +177,7 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 - Branch naming: `CK-{issue-number}_{short-description}` (e.g. `CK-1_sdd-scaffolding`)
 - Commit messages: `[CK-{issue-number}] {message}` — imperative mood, present tense (e.g. `[CK-1] add spec template for league creation`)
 - Every PR must:
-  - Reference the GitHub issue (`Closes #N`)
+  - Include `Closes #N` (exact syntax) in the PR **body** — this is what GitHub uses to auto-close the issue on merge. Do not use "References" or "See #N"; only `Closes`, `Fixes`, or `Resolves` trigger auto-close.
   - Reference the related spec (`Spec: docs/specs/...`)
   - Pass all CI checks before merge
 
