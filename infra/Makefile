@@ -8,4 +8,4 @@ GITHUB_REPO ?= courtknights/courtknights
 # Requires a token with administration: write permission (fine-grained PAT or GitHub App token).
 # Override the target repository with: make apply-rulesets GITHUB_REPO=org/repo
 apply-rulesets:
-	@bash "$(CURDIR)/apply_rulesets.sh" "$(GITHUB_REPO)"
+	@bash "$(CURDIR)/rulesets/apply_rulesets.sh" "$(GITHUB_REPO)"

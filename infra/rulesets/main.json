@@ -35,7 +35,7 @@
           {"context": "Frontend coverage check"},
           {"context": "ADR consistency check"}
         ],
-        "strict_required_status_checks_required": false
+        "strict_required_status_checks_policy": false
       }
     }
   ]

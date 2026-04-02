@@ -7,7 +7,7 @@ set -euo pipefail
 # Matches by ruleset name: creates if absent, updates if already present.
 #
 # Usage:
-#   bash infra/apply_rulesets.sh [GITHUB_REPO]
+#   bash infra/rulesets/apply_rulesets.sh [GITHUB_REPO]
 #
 # Arguments:
 #   GITHUB_REPO — owner/repo (default: courtknights/courtknights)
@@ -17,13 +17,19 @@ set -euo pipefail
 
 GITHUB_REPO="${1:-courtknights/courtknights}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RULESET_DIR="${SCRIPT_DIR}/rulesets"
+RULESET_DIR="${SCRIPT_DIR}"
 
 for ruleset_file in "${RULESET_DIR}"/*.json; do
     name=$(python3 -c "import json,sys; print(json.load(open('${ruleset_file}'))['name'])")
 
     existing_id=$(gh api "repos/${GITHUB_REPO}/rulesets" \
         --jq ".[] | select(.name == \"${name}\") | .id" 2>/dev/null || true)
+
+    if [[ -n "${existing_id}" ]] && ! [[ "${existing_id}" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: could not retrieve rulesets for '${GITHUB_REPO}'." >&2
+        echo "       Ensure the repository is public or the account has GitHub Pro." >&2
+        exit 1
+    fi
 
     if [ -n "$existing_id" ]; then
         echo "Updating ruleset '${name}' (id: ${existing_id})..."
