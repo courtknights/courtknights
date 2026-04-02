@@ -84,6 +84,10 @@ GitHub rulesets are applied to `main` and `feature/**/branch` via `infra/ruleset
 
 **If the contributor base grows** and a proper review workflow becomes feasible, remove the bypass actor entirely from both rulesets.
 
+**Deletion protection on feature branches is intentionally omitted.** Feature branches are temporary: they are created for a single feature and deleted after the feature PR merges to `main`. Applying the `deletion` rule would block this routine cleanup and, crucially, would prevent deletion even by the org admin (since the bypass is `pull_request`-only and deletion is not a PR operation). Traceability of completed work is preserved by the merge commit on `main` and the closed GitHub Issues, not by retaining the branch ref.
+
+**`do_not_enforce_on_create: true` on `required_status_checks` for feature branches.** This setting exempts the initial creation of a `feature/**/branch` ref from the status-check requirement. Without it, GitHub blocks `git push origin feature/CK-XXX/branch` even when the branch points to a commit that already passed CI on `main`, because the checks have not run in the context of the new ref. This is a GitHub platform limitation, not a gap in coverage: no new code is introduced when creating a branch from `main`. The setting does not affect PRs — any task or design branch PR targeting `feature/**/branch` is still required to have all three status checks pass before merging.
+
 ### Two-layer CI
 
 PRs targeting `feature/**/branch` run a fast subset of checks (unit tests only, no Testcontainers, no ADR consistency check). PRs targeting `main` run the full suite.
