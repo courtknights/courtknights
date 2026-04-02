@@ -47,7 +47,9 @@ Claude is prompted to return a structured JSON object only:
 }
 ```
 
-Claude must not return free-form text — only this JSON object. The script validates the schema before acting on the response.
+Claude must not return free-form text — only this JSON object. The system prompt explicitly forbids wrapping the response in markdown code fences. The script validates the schema before acting on the response.
+
+As a defensive fallback against LLM non-determinism, the script strips any leading/trailing code fences before parsing. If stripping occurs, a `::warning::` annotation is emitted in CI so the non-compliance is visible to a human. This fallback is intentional and must be retained alongside the prompt instruction: the prompt reduces the frequency of non-compliance; the stripping prevents hard failures on the rare occasions it still occurs.
 
 ### Severity model
 
