@@ -74,6 +74,16 @@ Where `{issue}` is the GitHub Issue number associated with the feature branch, c
 
 For task PRs the title is the verbatim GitHub issue title, so the issue and PR are trivially linked without any formatting ceremony.
 
+### Branch protection and bypass policy
+
+GitHub rulesets are applied to `main` and `feature/**/branch` via `infra/rulesets/` and `make apply-rulesets`. Both rulesets include an `OrganizationAdmin` bypass actor with `bypass_mode: "pull_request"`.
+
+**Why `pull_request` and not `always`:** The bypass allows an org admin to merge a PR without satisfying the approval requirement, but it does not grant direct-push access. This means all changes — including those from org admins — must still go through a pull request and have CI checks pass. The bypass exists solely to unblock self-merge in a repository with very few contributors (currently a single-contributor project), where requiring a second reviewer would halt all progress.
+
+**Direct push is intentionally not allowed, even for org admins.** If a genuine emergency requires bypassing CI (e.g., a critical hotfix that CI cannot validate), the correct path is a `fix/CK-XXX_description` branch with a PR — not a direct push to `main`. The hotfix branch type exists precisely for this scenario.
+
+**If the contributor base grows** and a proper review workflow becomes feasible, remove the bypass actor entirely from both rulesets.
+
 ### Two-layer CI
 
 PRs targeting `feature/**/branch` run a fast subset of checks (unit tests only, no Testcontainers, no ADR consistency check). PRs targeting `main` run the full suite.
