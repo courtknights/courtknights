@@ -123,11 +123,11 @@ def call_claude(adrs: dict[str, str], diff: str) -> dict:
     stripped = re.sub(r"\s*```$", "", stripped)
     if stripped != raw.strip():
         print(
-            "WARNING: Claude wrapped its response in markdown code fences. "
-            "This violates the response contract defined in ADR-011 "
+            "::warning::Claude wrapped its response in markdown code fences, "
+            "violating the response contract defined in ADR-011 "
             "(Claude must return only a JSON object, no free-form text). "
-            "Proceeding with parsing after stripping the fences.",
-            file=sys.stderr,
+            "If this happens consistently, update the prompt or revisit ADR-011. "
+            "Proceeding with parsing after stripping the fences."
         )
     try:
         return json.loads(stripped)
