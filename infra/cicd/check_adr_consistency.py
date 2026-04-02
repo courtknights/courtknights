@@ -57,7 +57,8 @@ Respond ONLY with a JSON object matching this schema:
 }
 
 If there are no violations, return { "violations": [], "adr_files_modified": [...] }.
-Do not include any text outside the JSON object."""
+Do not include any text outside the JSON object.
+Do not wrap the response in markdown code fences (no ``` or ```json)."""
 
 ADR_CHANGE_LABEL = "adr-change"
 
@@ -121,6 +122,14 @@ def call_claude(adrs: dict[str, str], diff: str) -> dict:
     # Strip optional markdown code fences (```json ... ``` or ``` ... ```)
     stripped = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
     stripped = re.sub(r"\s*```$", "", stripped)
+    if stripped != raw.strip():
+        print(
+            "::warning::Claude wrapped its response in markdown code fences, "
+            "violating the response contract defined in ADR-011 "
+            "(Claude must return only a JSON object, no free-form text). "
+            "If this happens consistently, update the prompt or revisit ADR-011. "
+            "Proceeding with parsing after stripping the fences."
+        )
     try:
         return json.loads(stripped)
     except json.JSONDecodeError as exc:
