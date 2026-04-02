@@ -12,7 +12,7 @@ CourtKnights is currently in early development. Only the latest version on `main
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Please report vulnerabilities by emailing **security@courtknights.io** with:
+Please use [GitHub's private vulnerability reporting](https://github.com/courtknights/courtknights/security/advisories/new) and include:
 
 - A description of the vulnerability and its potential impact
 - Steps to reproduce or a proof-of-concept
