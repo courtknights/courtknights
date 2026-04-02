@@ -57,7 +57,8 @@ Respond ONLY with a JSON object matching this schema:
 }
 
 If there are no violations, return { "violations": [], "adr_files_modified": [...] }.
-Do not include any text outside the JSON object."""
+Do not include any text outside the JSON object.
+Do not wrap the response in markdown code fences (no ``` or ```json)."""
 
 ADR_CHANGE_LABEL = "adr-change"
 
