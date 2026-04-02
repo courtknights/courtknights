@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# apply_rulesets.sh — Idempotent GitHub ruleset applier
+#
+# Creates or updates each ruleset defined in infra/rulesets/*.json.
+# Matches by ruleset name: creates if absent, updates if already present.
+#
+# Usage:
+#   bash infra/apply_rulesets.sh [GITHUB_REPO]
+#
+# Arguments:
+#   GITHUB_REPO — owner/repo (default: courtknights/courtknights)
+#
+# Requirements:
+#   - gh CLI authenticated with a token that has `administration: write` permission
+
+GITHUB_REPO="${1:-courtknights/courtknights}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+RULESET_DIR="${SCRIPT_DIR}/rulesets"
+
+for ruleset_file in "${RULESET_DIR}"/*.json; do
+    name=$(python3 -c "import json,sys; print(json.load(open('${ruleset_file}'))['name'])")
+
+    existing_id=$(gh api "repos/${GITHUB_REPO}/rulesets" \
+        --jq ".[] | select(.name == \"${name}\") | .id" 2>/dev/null || true)
+
+    if [ -n "$existing_id" ]; then
+        echo "Updating ruleset '${name}' (id: ${existing_id})..."
+        gh api "repos/${GITHUB_REPO}/rulesets/${existing_id}" \
+            --method PUT \
+            --input "${ruleset_file}"
+        echo "OK: ruleset '${name}' updated."
+    else
+        echo "Creating ruleset '${name}'..."
+        gh api "repos/${GITHUB_REPO}/rulesets" \
+            --method POST \
+            --input "${ruleset_file}"
+        echo "OK: ruleset '${name}' created."
+    fi
+done

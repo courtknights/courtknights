@@ -3,7 +3,8 @@
 .PHONY: build run test test-int test-all test-cov test-int-cov lint fmt clean \
         db-migrate db-rollback db-status \
         web-install web-start web-build web-test \
-        cicd-spec-ref cicd-backend-cov cicd-frontend-cov cicd-adr
+        cicd-spec-ref cicd-backend-cov cicd-frontend-cov cicd-adr \
+        apply-rulesets
 
 ## api targets
 build:
@@ -58,6 +59,10 @@ cicd-frontend-cov:
 
 cicd-adr:
 	$(MAKE) -C infra/cicd check-adr
+
+## infra targets
+apply-rulesets:
+	$(MAKE) -C infra apply-rulesets GITHUB_REPO=$(GITHUB_REPO)
 
 ## web targets
 web-install:
