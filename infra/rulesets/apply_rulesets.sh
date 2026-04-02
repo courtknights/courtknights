@@ -4,6 +4,9 @@ set -euo pipefail
 # apply_rulesets.sh — Idempotent GitHub ruleset applier
 #
 # Creates or updates each ruleset defined in infra/rulesets/*.json.
+# Bypass actors are loaded from infra/rulesets/owners.json and injected
+# into every ruleset at apply time — do not hardcode bypass_actors in the
+# individual ruleset files.
 # Matches by ruleset name: creates if absent, updates if already present.
 #
 # Usage:
@@ -18,9 +21,23 @@ set -euo pipefail
 GITHUB_REPO="${1:-courtknights/courtknights}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RULESET_DIR="${SCRIPT_DIR}"
+OWNERS_FILE="${SCRIPT_DIR}/owners.json"
 
 for ruleset_file in "${RULESET_DIR}"/*.json; do
-    name=$(python3 -c "import json,sys; print(json.load(open('${ruleset_file}'))['name'])")
+    [[ "$(basename "${ruleset_file}")" == "owners.json" ]] && continue
+
+    name=$(python3 -c "import json; print(json.load(open('${ruleset_file}'))['name'])")
+
+    merged=$(python3 -c "
+import json
+ruleset = json.load(open('${ruleset_file}'))
+owners = json.load(open('${OWNERS_FILE}'))
+ruleset['bypass_actors'] = [
+    {'actor_id': o['id'], 'actor_type': 'User', 'bypass_mode': 'pull_request'}
+    for o in owners
+]
+print(json.dumps(ruleset))
+")
 
     existing_id=$(gh api "repos/${GITHUB_REPO}/rulesets" \
         --jq ".[] | select(.name == \"${name}\") | .id" 2>/dev/null || true)
@@ -33,15 +50,15 @@ for ruleset_file in "${RULESET_DIR}"/*.json; do
 
     if [ -n "$existing_id" ]; then
         echo "Updating ruleset '${name}' (id: ${existing_id})..."
-        gh api "repos/${GITHUB_REPO}/rulesets/${existing_id}" \
+        echo "${merged}" | gh api "repos/${GITHUB_REPO}/rulesets/${existing_id}" \
             --method PUT \
-            --input "${ruleset_file}"
+            --input -
         echo "OK: ruleset '${name}' updated."
     else
         echo "Creating ruleset '${name}'..."
-        gh api "repos/${GITHUB_REPO}/rulesets" \
+        echo "${merged}" | gh api "repos/${GITHUB_REPO}/rulesets" \
             --method POST \
-            --input "${ruleset_file}"
+            --input -
         echo "OK: ruleset '${name}' created."
     fi
 done
