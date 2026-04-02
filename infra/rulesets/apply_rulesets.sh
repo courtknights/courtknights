@@ -33,7 +33,7 @@ import json
 ruleset = json.load(open('${ruleset_file}'))
 owners = json.load(open('${OWNERS_FILE}'))
 ruleset['bypass_actors'] = [
-    {'actor_id': o['id'], 'actor_type': 'User', 'bypass_mode': 'pull_request'}
+    {'actor_id': o['actor_id'], 'actor_type': o['actor_type'], 'bypass_mode': 'pull_request'}
     for o in owners
 ]
 print(json.dumps(ruleset))
