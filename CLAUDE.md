@@ -68,8 +68,8 @@ docs/
 - The agent reads the assigned GitHub Issue and the full feature spec
 - Implements one task at a time and opens one PR per task
 - Before opening a PR: run feature tests + full regression suite
+- Each task PR must include an update to `docs/testing/regression_map.md` if the task introduces or changes dependencies
 - Human reviews the PR, validates `05_acceptance.md`, and approves the merge
-- On merge: update `docs/testing/regression_map.md`
 
 ---
 
@@ -226,7 +226,7 @@ Every PR must:
 - Follow the mandatory reading order before any task: `context/` → `decisions/` → `testing/strategy.md` → feature spec.
 - Implement one task at a time (one PR per task).
 - Run feature tests + full regression suite before opening any PR.
-- Update `docs/testing/regression_map.md` after a merge.
+- Update `docs/testing/regression_map.md` in each task PR when the task introduces or changes dependencies.
 - Run `make lint` and `make test` after backend changes.
 - Run `npm test` after frontend changes.
 - Document new technical decisions in `docs/decisions/` — never assume them silently.
