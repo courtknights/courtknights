@@ -36,6 +36,14 @@ Add a **user profile** system that allows each user to maintain a richer public 
 
 Country and region are validated using an embedded dataset (no external API). City is free text to accommodate the wide variety of naming conventions across locales. If `region` is provided, `country` must also be provided.
 
+### Sport identity
+
+| Field | Type | Values | Notes |
+|-------|------|--------|-------|
+| `gender` | enum | `male`, `female` | Required for tournament category assignment. |
+| `date_of_birth` | date | ISO 8601 (`YYYY-MM-DD`) | Used for age-group tournament eligibility. |
+| `category` | enum | `first`, `second`, `third`, `fourth`, `fifth` | Federative category, self-declared. |
+
 ### Preferences
 
 Stored as a **JSONB column** in PostgreSQL. This allows new preference fields to be added in the future without a schema migration.
