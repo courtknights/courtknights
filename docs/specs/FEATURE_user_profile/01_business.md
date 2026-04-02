@@ -30,9 +30,11 @@ Add a **user profile** system that allows each user to maintain a richer public 
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `city` | string | Optional. |
-| `region` | string | Optional. |
-| `country` | string | Optional. |
+| `city` | string | Optional. Free text — no validation applied. |
+| `region` | string | Optional. ISO 3166-2 subdivision code (e.g. `ES-MD` for Community of Madrid). Validated against the country. |
+| `country` | string | Optional. ISO 3166-1 alpha-2 code (e.g. `ES`, `US`). Validated on write. |
+
+Country and region are validated using an embedded dataset (no external API). City is free text to accommodate the wide variety of naming conventions across locales. If `region` is provided, `country` must also be provided.
 
 ### Preferences
 
