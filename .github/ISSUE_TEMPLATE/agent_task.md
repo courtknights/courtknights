@@ -1,6 +1,6 @@
 ---
 name: Agent Task
-description: A spec-driven task to be executed by the AI agent.
+about: A spec-driven task to be executed by the AI agent.
 labels: ["agent-task"]
 ---
 
