@@ -13,6 +13,7 @@ CourtKnights follows **Spec Driven Development (SDD)**. All contributions — fe
 | Docker | any recent | Integration tests (Testcontainers spins up PostgreSQL automatically) |
 | `gh` CLI | any recent | PR and issue management |
 | `make` | any | Task runner |
+| `golang-migrate` | any recent | Database migrations (`make db-migrate`, `make db-rollback`) |
 
 Clone the repository and verify your setup:
 
