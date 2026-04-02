@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-description: Report a bug or unexpected behaviour.
+about: Report a bug or unexpected behaviour.
 labels: ["bug"]
 ---
 
