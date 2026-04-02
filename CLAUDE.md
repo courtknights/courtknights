@@ -69,7 +69,7 @@ docs/
 - Implements one task at a time and opens one PR per task
 - Before opening a PR: run feature tests + full regression suite
 - Human reviews the PR, validates `05_acceptance.md`, and approves the merge
-- On merge: update `docs/testing/regression_map.md`
+- Before opening the feature→main PR: update `docs/testing/regression_map.md` and include it in the PR
 
 ---
 
@@ -226,7 +226,7 @@ Every PR must:
 - Follow the mandatory reading order before any task: `context/` → `decisions/` → `testing/strategy.md` → feature spec.
 - Implement one task at a time (one PR per task).
 - Run feature tests + full regression suite before opening any PR.
-- Update `docs/testing/regression_map.md` after a merge.
+- Update `docs/testing/regression_map.md` in the feature→main PR, not after the merge.
 - Run `make lint` and `make test` after backend changes.
 - Run `npm test` after frontend changes.
 - Document new technical decisions in `docs/decisions/` — never assume them silently.
