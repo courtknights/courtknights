@@ -27,7 +27,7 @@ for ruleset_file in "${RULESET_DIR}"/*.json; do
 import json
 ruleset = json.load(open('${ruleset_file}'))
 ruleset['bypass_actors'] = [
-    {'actor_id': 0, 'actor_type': 'OrganizationAdmin', 'bypass_mode': 'pull_request'}
+    {'actor_id': 0, 'actor_type': 'OrganizationAdmin', 'bypass_mode': 'always'}
 ]
 print(json.dumps(ruleset))
 ")
