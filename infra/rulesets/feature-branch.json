@@ -11,9 +11,6 @@
   },
   "rules": [
     {
-      "type": "deletion"
-    },
-    {
       "type": "non_fast_forward"
     },
     {
@@ -34,7 +31,8 @@
           {"context": "Backend coverage check (unit)"},
           {"context": "Frontend coverage check"}
         ],
-        "strict_required_status_checks_policy": false
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": true
       }
     }
   ]
