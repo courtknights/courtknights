@@ -1,7 +1,7 @@
 # FEATURE_user_profile — Business Context
 
 - **Last updated:** 2026-04-02
-- **Status:** draft
+- **Status:** approved
 - **Issue:** [#93](https://github.com/courtknights/courtknights/issues/93)
 
 ---
