@@ -1,6 +1,6 @@
 # FEATURE_user_profile — Tasks
 
-- **Last updated:** 2026-04-02
+- **Last updated:** 2026-04-03
 - **Status:** approved
 - **Issue:** [#93](https://github.com/courtknights/courtknights/issues/93)
 - **Spec:** [01_business.md](01_business.md) · [02_architecture.md](02_architecture.md)
@@ -28,7 +28,7 @@ T-01 (domain)
 
 ---
 
-## T-01 — Domain layer: Profile entity, Preferences, repository interface, ckerrors
+## T-01 — Domain layer: Profile entity, Preferences, repository interface, ckerrors · [#96](https://github.com/courtknights/courtknights/issues/96)
 
 **Files to create:**
 
@@ -53,7 +53,7 @@ Rules for `ValidateLocation`:
 
 ---
 
-## T-02 — Database schema: user_profiles
+## T-02 — Database schema: user_profiles · [#97](https://github.com/courtknights/courtknights/issues/97)
 
 > No code dependencies. Can be worked on in parallel with T-01.
 
@@ -71,7 +71,7 @@ Schema and migration contents are specified in `02_architecture.md` (Database sc
 
 ---
 
-## T-03 — Infrastructure: PostgreSQL ProfileRepository
+## T-03 — Infrastructure: PostgreSQL ProfileRepository · [#98](https://github.com/courtknights/courtknights/issues/98)
 
 > Depends on T-01 + T-02.
 
@@ -93,7 +93,7 @@ Implementation notes (from `02_architecture.md`):
 
 ---
 
-## T-04 — Application: ProfileManager
+## T-04 — Application: ProfileManager · [#99](https://github.com/courtknights/courtknights/issues/99)
 
 > Depends on T-01.
 
@@ -113,7 +113,7 @@ Validation in `Update`:
 
 ---
 
-## T-05 — Auth integration: profile initialisation on login
+## T-05 — Auth integration: profile initialisation on login · [#100](https://github.com/courtknights/courtknights/issues/100)
 
 > Depends on T-03 + T-04.
 
@@ -134,7 +134,7 @@ The `EnsureExists` call must happen after the user upsert but before signing the
 
 ---
 
-## T-06 — API: own-profile and get-by-ID endpoints
+## T-06 — API: own-profile and get-by-ID endpoints · [#101](https://github.com/courtknights/courtknights/issues/101)
 
 > Depends on T-04.
 
@@ -160,7 +160,7 @@ Error mapping:
 
 ---
 
-## T-07 — API: list users endpoint
+## T-07 — API: list users endpoint · [#102](https://github.com/courtknights/courtknights/issues/102)
 
 > Depends on T-04. `profileManager` is already injected from T-06.
 
