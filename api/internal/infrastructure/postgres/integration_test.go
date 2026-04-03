@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,42 +68,32 @@ func TestMain(m *testing.M) {
 }
 
 func applyMigrations(ctx context.Context, db *pgxpool.Pool) error {
-	ddl := `
-	CREATE TABLE IF NOT EXISTS users (
-		id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-		email       VARCHAR(255) NOT NULL UNIQUE,
-		name        VARCHAR(255) NOT NULL,
-		role        VARCHAR(50)  NOT NULL DEFAULT 'user'
-		                         CHECK (role IN ('admin', 'user')),
-		provider    VARCHAR(50)  NOT NULL
-		                         CHECK (provider IN ('google', 'github', 'pat')),
-		provider_id VARCHAR(255) NOT NULL,
-		created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-		updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-		UNIQUE (provider, provider_id)
-	);
-	CREATE TABLE IF NOT EXISTS personal_access_tokens (
-		id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-		key_hash    VARCHAR(255) NOT NULL,
-		salt        VARCHAR(255) NOT NULL,
-		expires_at  TIMESTAMPTZ,
-		created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-	);
-	CREATE TABLE IF NOT EXISTS user_profiles (
-		user_id       UUID         PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-		display_name  VARCHAR(255) NOT NULL,
-		city          VARCHAR(255),
-		region        VARCHAR(10),
-		country       VARCHAR(2),
-		gender        VARCHAR(10)  CHECK (gender IN ('male', 'female')),
-		date_of_birth DATE,
-		category      VARCHAR(10)  CHECK (category IN ('first','second','third','fourth','fifth')),
-		preferences   JSONB        NOT NULL DEFAULT '{}',
-		created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-		updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-	);`
-	_, err := db.Exec(ctx, ddl)
-	return err
+	// Resolve db/migrations relative to this package (api/internal/infrastructure/postgres/).
+	migrationsDir := filepath.Join("..", "..", "..", "..", "db", "migrations")
+
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("read migrations dir: %w", err)
+	}
+
+	var upFiles []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
+			upFiles = append(upFiles, e.Name())
+		}
+	}
+	sort.Strings(upFiles)
+
+	for _, name := range upFiles {
+		sql, err := os.ReadFile(filepath.Join(migrationsDir, name))
+		if err != nil {
+			return fmt.Errorf("read %s: %w", name, err)
+		}
+		if _, err := db.Exec(ctx, string(sql)); err != nil {
+			return fmt.Errorf("apply %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func truncate(t *testing.T) {
