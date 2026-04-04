@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	appprofile "github.com/courtknights/courtknights/internal/application/profile"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -44,14 +45,16 @@ type AuthManager interface {
 }
 
 type authManager struct {
-	user  UserManager
-	jwt   JWTManager
-	oauth OAuthManager
+	user     UserManager
+	jwt      JWTManager
+	oauth    OAuthManager
+	profiles appprofile.ProfileManager
 }
 
-// NewAuthManager returns an AuthManager composed of the three sub-managers.
-func NewAuthManager(u UserManager, j JWTManager, o OAuthManager) AuthManager {
-	return &authManager{user: u, jwt: j, oauth: o}
+// NewAuthManager returns an AuthManager composed of the three sub-managers and a ProfileManager.
+// The ProfileManager is called on every successful login to ensure a profile exists for the user.
+func NewAuthManager(u UserManager, j JWTManager, o OAuthManager, profiles appprofile.ProfileManager) AuthManager {
+	return &authManager{user: u, jwt: j, oauth: o, profiles: profiles}
 }
 
 func (m *authManager) OAuthRedirectURL(provider user.Provider, state string) (string, error) {
@@ -65,6 +68,9 @@ func (m *authManager) OAuthCallback(ctx context.Context, provider user.Provider,
 	}
 	u, err := m.user.ResolveByOAuth(ctx, provider, info.ProviderID, info.Email, info.Name)
 	if err != nil {
+		return "", fmt.Errorf("auth manager: OAuthCallback: %w", err)
+	}
+	if err := m.profiles.EnsureExists(ctx, u.ID, u.Name); err != nil {
 		return "", fmt.Errorf("auth manager: OAuthCallback: %w", err)
 	}
 	return m.jwt.Sign(u)
@@ -81,6 +87,9 @@ func (m *authManager) DevicePoll(ctx context.Context, provider user.Provider, de
 	}
 	u, err := m.user.ResolveByOAuth(ctx, provider, info.ProviderID, info.Email, info.Name)
 	if err != nil {
+		return "", fmt.Errorf("auth manager: DevicePoll: %w", err)
+	}
+	if err := m.profiles.EnsureExists(ctx, u.ID, u.Name); err != nil {
 		return "", fmt.Errorf("auth manager: DevicePoll: %w", err)
 	}
 	return m.jwt.Sign(u)
@@ -123,5 +132,16 @@ func (m *authManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role
 }
 
 func (m *authManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
-	return m.user.BootstrapAdmin(ctx, email, name, rawPAT)
+	u, token, err := m.user.BootstrapAdmin(ctx, email, name, rawPAT)
+	if err != nil {
+		return "", fmt.Errorf("auth manager: BootstrapAdmin: %w", err)
+	}
+	if u == nil {
+		// No-op: users already exist.
+		return token, nil
+	}
+	if err := m.profiles.EnsureExists(ctx, u.ID, u.Name); err != nil {
+		return "", fmt.Errorf("auth manager: BootstrapAdmin: %w", err)
+	}
+	return token, nil
 }

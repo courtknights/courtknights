@@ -172,9 +172,10 @@ func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
 		Return(&user.User{ID: uuid.New(), Role: user.RoleAdmin}, nil)
 
-	rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
+	u, rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
 	require.NoError(t, err)
 	assert.Equal(t, "bootstrap-secret", rawPAT)
+	assert.NotNil(t, u)
 	users.AssertExpectations(t)
 	pats.AssertExpectations(t)
 }
@@ -186,8 +187,9 @@ func TestManager_BootstrapAdmin_IsNoOpWhenUsersExist(t *testing.T) {
 
 	users.On("CountAll", context.Background()).Return(int64(1), nil)
 
-	rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
+	u, rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
 	require.NoError(t, err)
+	assert.Nil(t, u)
 	assert.Empty(t, rawPAT)
 	// Save and Upsert must NOT be called
 	pats.AssertNotCalled(t, "Save")

@@ -14,6 +14,7 @@ import (
 	"github.com/courtknights/courtknights/internal/api/pats"
 	"github.com/courtknights/courtknights/internal/api/users"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	appprofile "github.com/courtknights/courtknights/internal/application/profile"
 	domainuser "github.com/courtknights/courtknights/internal/domain/user"
 	"github.com/courtknights/courtknights/internal/infrastructure/jwt"
 	"github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -32,6 +33,7 @@ func runServer(ctx context.Context, cfg Config) error {
 	// ---- repositories ----
 	userRepo := postgres.NewUserRepository(db)
 	patRepo := postgres.NewPATRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 
 	// ---- jwt adapter ----
 	jwtAdapter, err := jwt.NewWithConfig(cfg.JWT.Secret, cfg.JWT.Expiry)
@@ -46,7 +48,8 @@ func runServer(ctx context.Context, cfg Config) error {
 	userManager := appauth.NewUserManager(userRepo, patRepo)
 	jwtManager := appauth.NewJWTManager(jwtAdapter)
 	oauthManager := appauth.NewOAuthManager(providers)
-	authManager := appauth.NewAuthManager(userManager, jwtManager, oauthManager)
+	profileManager := appprofile.NewProfileManager(profileRepo)
+	authManager := appauth.NewAuthManager(userManager, jwtManager, oauthManager, profileManager)
 
 	// ---- bootstrap admin ----
 	if err := runBootstrap(ctx, cfg.Bootstrap, authManager); err != nil {
