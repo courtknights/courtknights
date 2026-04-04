@@ -43,6 +43,11 @@ func NewProfileManager(repo profile.ProfileRepository) ProfileManager {
 	return &profileManager{profiles: repo}
 }
 
+// EnsureExists is called by AuthManager on every successful login (OAuthCallback,
+// DevicePoll, BootstrapAdmin) after the user row is resolved or created. It
+// delegates to the repository which issues an INSERT ... ON CONFLICT DO NOTHING,
+// so on the first login a profile row is created and on subsequent logins the
+// call is a no-op.
 func (m *profileManager) EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error {
 	if err := m.profiles.EnsureExists(ctx, userID, displayName); err != nil {
 		return fmt.Errorf("profile manager: EnsureExists: %w", err)

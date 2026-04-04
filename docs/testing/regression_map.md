@@ -3,7 +3,7 @@
 Tracks dependencies between features. Update this file every time a feature is merged.
 When a feature is modified, all dependent features in this map must have their tests re-run.
 
-- **Last updated:** 2026-04-03
+- **Last updated:** 2026-04-04
 
 ---
 
@@ -39,3 +39,5 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_user_profile / T-01 | `profile` domain entities (`Profile`, `Preferences`, enums), `ProfileRepository` interface, `ValidateLocation`, `ckerrors.ErrProfileNotFound` | — | FEATURE_user_profile / T-03..T-07 |
 | FEATURE_user_profile / T-02 | `user_profiles` DB migration (003) + schema definition | FEATURE_authentication / postgres | FEATURE_user_profile / T-03 |
 | FEATURE_user_profile / T-03 | `ProfileRepository` PostgreSQL implementation (`EnsureExists`, `FindByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-02, FEATURE_authentication / postgres | FEATURE_user_profile / T-05 |
+| FEATURE_user_profile / T-04 | `ProfileManager` application layer (`EnsureExists`, `GetByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-03 | FEATURE_user_profile / T-05, T-06, T-07 |
+| FEATURE_user_profile / T-05 | Auth integration: profile initialisation on login (`AuthManager` extended, `UserManager.BootstrapAdmin` returns user, server wiring) | FEATURE_user_profile / T-03, T-04, FEATURE_authentication / application | FEATURE_authentication / cmd/server |
