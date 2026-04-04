@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +19,17 @@ import (
 	"github.com/courtknights/courtknights/internal/domain/profile"
 	"github.com/courtknights/courtknights/internal/domain/user"
 )
+
+// allowedListFields is the set of field names accepted by the list endpoint.
+var allowedListFields = map[string]struct{}{
+	"id":           {},
+	"display_name": {},
+	"city":         {},
+	"region":       {},
+	"country":      {},
+	"gender":       {},
+	"category":     {},
+}
 
 // Handler handles all user management HTTP requests.
 type Handler struct {
@@ -297,4 +310,105 @@ func toProfileResponse(p *profile.Profile) profileResponse {
 	}
 
 	return resp
+}
+
+// listUsers returns a paginated, optionally field-filtered list of user profiles.
+// GET /api/v1/users
+func (h *Handler) listUsers(c echo.Context) error {
+	page := 1
+	pageSize := 20
+
+	if v := c.QueryParam("page"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, "page must be a positive integer")
+		}
+		page = n
+	}
+
+	if v := c.QueryParam("page_size"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, "page_size must be a positive integer")
+		}
+		if n > 100 {
+			return echo.NewHTTPError(http.StatusBadRequest, "page_size must not exceed 100")
+		}
+		pageSize = n
+	}
+
+	var fields []string
+	if v := c.QueryParam("fields"); v != "" {
+		for _, f := range strings.Split(v, ",") {
+			f = strings.TrimSpace(f)
+			if _, ok := allowedListFields[f]; !ok {
+				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("unknown field: %q", f))
+			}
+			fields = append(fields, f)
+		}
+	}
+
+	items, total, err := h.profiles.List(c.Request().Context(), profile.ListParams{
+		Page:     page,
+		PageSize: pageSize,
+		Fields:   fields,
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list users")
+	}
+
+	data := make([]listItemResponse, len(items))
+	for i, item := range items {
+		data[i] = toListItemResponse(item)
+	}
+
+	return c.JSON(http.StatusOK, listUsersResponse{
+		Data:     data,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
+
+// listUsersResponse is the JSON envelope for the list-users endpoint.
+type listUsersResponse struct {
+	Data     []listItemResponse `json:"data"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"page_size"`
+}
+
+// listItemResponse is a single entry in the list-users response.
+// All profile fields are optional (omitted when nil / not requested).
+type listItemResponse struct {
+	ID          *string `json:"id,omitempty"`
+	DisplayName *string `json:"display_name,omitempty"`
+	City        *string `json:"city,omitempty"`
+	Region      *string `json:"region,omitempty"`
+	Country     *string `json:"country,omitempty"`
+	Gender      *string `json:"gender,omitempty"`
+	Category    *string `json:"category,omitempty"`
+}
+
+// toListItemResponse converts a domain ProfileListItem to its API response form.
+func toListItemResponse(item *profile.ProfileListItem) listItemResponse {
+	r := listItemResponse{
+		DisplayName: item.DisplayName,
+		City:        item.City,
+		Region:      item.Region,
+		Country:     item.Country,
+	}
+	if item.ID != nil {
+		s := item.ID.String()
+		r.ID = &s
+	}
+	if item.Gender != nil {
+		s := string(*item.Gender)
+		r.Gender = &s
+	}
+	if item.Category != nil {
+		s := string(*item.Category)
+		r.Category = &s
+	}
+	return r
 }
