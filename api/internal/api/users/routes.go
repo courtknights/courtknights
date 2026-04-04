@@ -15,6 +15,7 @@ func NewRoutes(h *Handler) *Routes {
 // Register mounts all user management routes on the given group.
 // Called by the router for the protected /api/v1 prefix (JWT middleware applied).
 func (r *Routes) Register(g *echo.Group) {
+	g.GET("/users", r.handler.listUsers)
 	g.GET("/users/me", r.handler.me)
 	g.PUT("/users/:id/role", r.handler.updateRole)
 
