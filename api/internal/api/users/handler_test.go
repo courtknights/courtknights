@@ -81,7 +81,7 @@ var _ appauth.AuthManager = (*mockAuthManager)(nil)
 // ---- helpers ----
 
 func newTestHandler(mgr appauth.AuthManager) (*Handler, *echo.Echo) {
-	return NewHandler(mgr), echo.New()
+	return NewHandler(mgr, nil), echo.New()
 }
 
 func contextWithAuth(e *echo.Echo, method, path, body, role, sub, email string) (echo.Context, *httptest.ResponseRecorder) {

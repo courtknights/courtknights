@@ -60,7 +60,7 @@ func runServer(ctx context.Context, cfg Config) error {
 	router := api.New()
 	router.MountPublic("/auth", apiauth.NewRoutes(apiauth.NewHandler(authManager)))
 	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), pats.NewRoutes(pats.NewHandler(authManager)))
-	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), users.NewRoutes(users.NewHandler(authManager)))
+	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), users.NewRoutes(users.NewHandler(authManager, profileManager)))
 
 	// ---- start server ----
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

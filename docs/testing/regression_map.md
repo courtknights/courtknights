@@ -41,3 +41,4 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_user_profile / T-03 | `ProfileRepository` PostgreSQL implementation (`EnsureExists`, `FindByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-02, FEATURE_authentication / postgres | FEATURE_user_profile / T-05 |
 | FEATURE_user_profile / T-04 | `ProfileManager` application layer (`EnsureExists`, `GetByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-03 | FEATURE_user_profile / T-05, T-06, T-07 |
 | FEATURE_user_profile / T-05 | Auth integration: profile initialisation on login (`AuthManager` extended, `UserManager.BootstrapAdmin` returns user, server wiring) | FEATURE_user_profile / T-03, T-04, FEATURE_authentication / application | FEATURE_authentication / cmd/server |
+| FEATURE_user_profile / T-06 | Profile HTTP endpoints (`GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`) | FEATURE_user_profile / T-04 | — |
