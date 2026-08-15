@@ -162,6 +162,16 @@ func buildUpdateQuery(setClauses []string, whereIdx int) string {
 func (r *ProfileRepository) List(ctx context.Context, params profile.ListParams) ([]*profile.ProfileListItem, int64, error) {
 	offset := (params.Page - 1) * params.PageSize
 
+	const countQ = `
+		SELECT COUNT(*)
+		FROM users u
+		JOIN user_profiles p ON p.user_id = u.id`
+
+	var totalCount int64
+	if err := r.db.QueryRow(ctx, countQ).Scan(&totalCount); err != nil {
+		return nil, 0, fmt.Errorf("postgres: List profiles count: %w", err)
+	}
+
 	const q = `
 		SELECT
 			u.id,
@@ -170,8 +180,7 @@ func (r *ProfileRepository) List(ctx context.Context, params profile.ListParams)
 			p.region,
 			p.country,
 			p.gender,
-			p.category,
-			COUNT(*) OVER() AS total_count
+			p.category
 		FROM users u
 		JOIN user_profiles p ON p.user_id = u.id
 		ORDER BY p.display_name ASC
@@ -184,15 +193,11 @@ func (r *ProfileRepository) List(ctx context.Context, params profile.ListParams)
 	defer rows.Close()
 
 	var items []*profile.ProfileListItem
-	var totalCount int64
 
 	for rows.Next() {
-		item, count, err := scanProfileListItem(rows)
+		item, err := scanProfileListItem(rows)
 		if err != nil {
 			return nil, 0, fmt.Errorf("postgres: List profiles scan: %w", err)
-		}
-		if totalCount == 0 {
-			totalCount = count
 		}
 		items = append(items, item)
 	}
@@ -257,14 +262,13 @@ func scanProfile(row pgx.Row) (*profile.Profile, error) {
 	return &p, nil
 }
 
-// scanProfileListItem reads a profile list row from pgx.Rows (includes the window count column).
-func scanProfileListItem(rows pgx.Rows) (*profile.ProfileListItem, int64, error) {
+// scanProfileListItem reads a profile list row from pgx.Rows.
+func scanProfileListItem(rows pgx.Rows) (*profile.ProfileListItem, error) {
 	var item profile.ProfileListItem
 	var id uuid.UUID
 	var displayName string
 	var gender *string
 	var category *string
-	var totalCount int64
 
 	err := rows.Scan(
 		&id,
@@ -274,10 +278,9 @@ func scanProfileListItem(rows pgx.Rows) (*profile.ProfileListItem, int64, error)
 		&item.Country,
 		&gender,
 		&category,
-		&totalCount,
 	)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	item.ID = &id
@@ -292,5 +295,5 @@ func scanProfileListItem(rows pgx.Rows) (*profile.ProfileListItem, int64, error)
 		item.Category = &c
 	}
 
-	return &item, totalCount, nil
+	return &item, nil
 }
