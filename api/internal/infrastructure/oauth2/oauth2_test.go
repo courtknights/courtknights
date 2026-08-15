@@ -123,3 +123,71 @@ func TestGitHubProvider_Exchange_FallbackNameToLogin(t *testing.T) {
 func TestErrAuthorizationPending_Error(t *testing.T) {
 	assert.Equal(t, "authorization_pending", ErrAuthorizationPending.Error())
 }
+
+// ---- UserInfoURL override + non-200 handling ----
+
+func TestGoogleProvider_Exchange_UsesUserInfoURLOverride(t *testing.T) {
+	tokenPayload := map[string]any{"access_token": "fake-google-token", "token_type": "Bearer"}
+	userPayload := map[string]string{"sub": "google-123", "email": "alice@example.com", "name": "Alice"}
+
+	p := NewGoogle(GoogleConfig{
+		ClientID: "id", ClientSecret: "secret", RedirectURL: "http://localhost/cb",
+		UserInfoURL: "http://mock/google/userinfo",
+	}, &http.Client{Transport: tokenTransport(tokenPayload, userPayload)})
+	p.cfg.Endpoint = xoauth2.Endpoint{TokenURL: "http://fake/token"}
+
+	info, err := p.Exchange(context.Background(), "valid-code")
+	require.NoError(t, err)
+	assert.Equal(t, "alice@example.com", info.Email)
+	assert.Equal(t, "http://mock/google/userinfo", p.userInfoURL)
+}
+
+func TestGoogleProvider_Exchange_NonOKUserInfoStatusFails(t *testing.T) {
+	tokenPayload := map[string]any{"access_token": "fake-google-token", "token_type": "Bearer"}
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.String(), "token") {
+			return jsonResp(http.StatusOK, tokenPayload), nil
+		}
+		return jsonResp(http.StatusUnauthorized, map[string]string{"error": "invalid_token"}), nil
+	})
+
+	p := NewGoogle(GoogleConfig{ClientID: "id", ClientSecret: "secret", RedirectURL: "http://localhost/cb"},
+		&http.Client{Transport: transport})
+	p.cfg.Endpoint = xoauth2.Endpoint{TokenURL: "http://fake/token"}
+
+	_, err := p.Exchange(context.Background(), "valid-code")
+	require.Error(t, err)
+}
+
+func TestGitHubProvider_Exchange_UsesUserInfoURLOverride(t *testing.T) {
+	tokenPayload := map[string]any{"access_token": "gh-token", "token_type": "bearer"}
+	userPayload := map[string]any{"id": int64(42), "login": "bob", "name": "Bob Builder", "email": "bob@example.com"}
+
+	p := NewGitHub(GitHubConfig{
+		ClientID: "id", ClientSecret: "secret",
+		UserInfoURL: "http://mock/github/userinfo",
+	}, &http.Client{Transport: tokenTransport(tokenPayload, userPayload)})
+	p.cfg.Endpoint = xoauth2.Endpoint{TokenURL: "http://fake/token"}
+
+	info, err := p.Exchange(context.Background(), "valid-code")
+	require.NoError(t, err)
+	assert.Equal(t, "bob@example.com", info.Email)
+	assert.Equal(t, "http://mock/github/userinfo", p.userInfoURL)
+}
+
+func TestGitHubProvider_Exchange_NonOKUserInfoStatusFails(t *testing.T) {
+	tokenPayload := map[string]any{"access_token": "gh-token", "token_type": "bearer"}
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.String(), "token") {
+			return jsonResp(http.StatusOK, tokenPayload), nil
+		}
+		return jsonResp(http.StatusUnauthorized, map[string]string{"message": "Bad credentials"}), nil
+	})
+
+	p := NewGitHub(GitHubConfig{ClientID: "id", ClientSecret: "secret"},
+		&http.Client{Transport: transport})
+	p.cfg.Endpoint = xoauth2.Endpoint{TokenURL: "http://fake/token"}
+
+	_, err := p.Exchange(context.Background(), "valid-code")
+	require.Error(t, err)
+}

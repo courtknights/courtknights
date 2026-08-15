@@ -65,6 +65,9 @@ func registerFlags(cmd *cobra.Command, v *viper.Viper) {
 	f.String("google-device-auth-url", "", "Override Google OAuth2 device auth URL — use for local mocks (COURTKNIGHTS_GOOGLE_DEVICE_AUTH_URL)")
 	_ = v.BindPFlag("google.device_auth_url", f.Lookup("google-device-auth-url"))
 
+	f.String("google-userinfo-url", "", "Override Google OAuth2 userinfo URL — use for local mocks (COURTKNIGHTS_GOOGLE_USERINFO_URL)")
+	_ = v.BindPFlag("google.userinfo_url", f.Lookup("google-userinfo-url"))
+
 	// GitHub OAuth2
 	f.String("github-client-id", "", "GitHub OAuth2 client ID (COURTKNIGHTS_GITHUB_CLIENT_ID)")
 	_ = v.BindPFlag("github.client_id", f.Lookup("github-client-id"))
@@ -83,6 +86,9 @@ func registerFlags(cmd *cobra.Command, v *viper.Viper) {
 
 	f.String("github-device-auth-url", "", "Override GitHub OAuth2 device auth URL — use for local mocks (COURTKNIGHTS_GITHUB_DEVICE_AUTH_URL)")
 	_ = v.BindPFlag("github.device_auth_url", f.Lookup("github-device-auth-url"))
+
+	f.String("github-userinfo-url", "", "Override GitHub OAuth2 userinfo URL — use for local mocks (COURTKNIGHTS_GITHUB_USERINFO_URL)")
+	_ = v.BindPFlag("github.userinfo_url", f.Lookup("github-userinfo-url"))
 
 	// Bootstrap admin
 	f.String("bootstrap-email", "", "Admin bootstrap email (COURTKNIGHTS_BOOTSTRAP_EMAIL)")
