@@ -7,11 +7,21 @@ import (
 
 	"github.com/google/uuid"
 
-	appprofile "github.com/courtknights/courtknights/internal/application/profile"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
 )
+
+// ProfileInitializer is the narrow slice of application/profile.ProfileManager
+// that AuthManager needs: creating a profile row on first login. Declared here
+// (rather than depending on the full ProfileManager interface from another
+// feature's application package) so AuthManager only depends on the one
+// operation it actually calls.
+type ProfileInitializer interface {
+	// EnsureExists creates a profile for the given user if one does not already exist.
+	// It is idempotent and safe to call on every login.
+	EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error
+}
 
 // AuthManager is the root manager for the authentication feature.
 // It is the single entry point for all auth Handlers — no Handler may call
@@ -48,12 +58,12 @@ type authManager struct {
 	user     UserManager
 	jwt      JWTManager
 	oauth    OAuthManager
-	profiles appprofile.ProfileManager
+	profiles ProfileInitializer
 }
 
-// NewAuthManager returns an AuthManager composed of the three sub-managers and a ProfileManager.
-// The ProfileManager is called on every successful login to ensure a profile exists for the user.
-func NewAuthManager(u UserManager, j JWTManager, o OAuthManager, profiles appprofile.ProfileManager) AuthManager {
+// NewAuthManager returns an AuthManager composed of the three sub-managers and a ProfileInitializer.
+// The ProfileInitializer is called on every successful login to ensure a profile exists for the user.
+func NewAuthManager(u UserManager, j JWTManager, o OAuthManager, profiles ProfileInitializer) AuthManager {
 	return &authManager{user: u, jwt: j, oauth: o, profiles: profiles}
 }
 

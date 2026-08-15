@@ -78,7 +78,8 @@ func (m *mockPATRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
 
-// mockProfileManager is a testify mock for appprofile.ProfileManager.
+// mockProfileManager is a testify mock satisfying ProfileInitializer (and, for
+// convenience, the full application/profile.ProfileManager method set).
 type mockProfileManager struct{ mock.Mock }
 
 func (m *mockProfileManager) EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error {
