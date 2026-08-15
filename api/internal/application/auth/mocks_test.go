@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/courtknights/courtknights/internal/domain/pat"
+	domainprofile "github.com/courtknights/courtknights/internal/domain/profile"
 	"github.com/courtknights/courtknights/internal/domain/user"
 )
 
@@ -75,4 +76,35 @@ func (m *mockPATRepository) Save(ctx context.Context, p *pat.PAT) (*pat.PAT, err
 
 func (m *mockPATRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
+}
+
+// mockProfileManager is a testify mock for appprofile.ProfileManager.
+type mockProfileManager struct{ mock.Mock }
+
+func (m *mockProfileManager) EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error {
+	return m.Called(ctx, userID, displayName).Error(0)
+}
+
+func (m *mockProfileManager) GetByUserID(ctx context.Context, userID uuid.UUID) (*domainprofile.Profile, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domainprofile.Profile), args.Error(1)
+}
+
+func (m *mockProfileManager) Update(ctx context.Context, userID uuid.UUID, patch domainprofile.ProfilePatch) (*domainprofile.Profile, error) {
+	args := m.Called(ctx, userID, patch)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domainprofile.Profile), args.Error(1)
+}
+
+func (m *mockProfileManager) List(ctx context.Context, params domainprofile.ListParams) ([]*domainprofile.ProfileListItem, int64, error) {
+	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*domainprofile.ProfileListItem), args.Get(1).(int64), args.Error(2)
 }

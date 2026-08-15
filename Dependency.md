@@ -18,3 +18,4 @@ Format: **Name** | **Purpose** | **License**
 | `github.com/jackc/pgx/v5` | PostgreSQL driver and connection pool (ADR-003) | MIT |
 | `github.com/testcontainers/testcontainers-go` | Integration test containers — spins up real PostgreSQL (ADR-004) | MIT |
 | `github.com/spf13/cobra` | CLI framework — Cobra root command for the server entrypoint (ADR-002) | Apache-2.0 |
+| `github.com/biter777/countries` | ISO 3166-1 alpha-2 country and ISO 3166-2 subdivision validation — embedded dataset, no external API | MIT |

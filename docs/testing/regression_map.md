@@ -3,7 +3,7 @@
 Tracks dependencies between features. Update this file every time a feature is merged.
 When a feature is modified, all dependent features in this map must have their tests re-run.
 
-- **Last updated:** 2026-04-02
+- **Last updated:** 2026-04-04
 
 ---
 
@@ -36,3 +36,10 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_ci_checks / TASK-005 | `check_adr_consistency.py` — AI-assisted ADR consistency check via claude-sonnet-4-6 (BLOCKING/WARNING violations, adr-change label) | FEATURE_ci_checks / TASK-001 | FEATURE_ci_checks / TASK-006 |
 | FEATURE_ci_checks / TASK-006 | `.github/workflows/ci.yml` — GitHub Actions workflow orchestrating all 4 CI checks as parallel jobs on PRs to main | FEATURE_ci_checks / TASK-002..005 | FEATURE_branching_workflow |
 | FEATURE_branching_workflow | ADR-012 hierarchical branching model, two-layer CI, design-branch content check, GitHub rulesets, CONTRIBUTING.md, README.md | FEATURE_ci_checks / TASK-006, FEATURE_repo_workspaces | — |
+| FEATURE_user_profile / T-01 | `profile` domain entities (`Profile`, `Preferences`, enums), `ProfileRepository` interface, `ValidateLocation`, `ckerrors.ErrProfileNotFound` | — | FEATURE_user_profile / T-03..T-07 |
+| FEATURE_user_profile / T-02 | `user_profiles` DB migration (003) + schema definition | FEATURE_authentication / postgres | FEATURE_user_profile / T-03 |
+| FEATURE_user_profile / T-03 | `ProfileRepository` PostgreSQL implementation (`EnsureExists`, `FindByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-02, FEATURE_authentication / postgres | FEATURE_user_profile / T-05 |
+| FEATURE_user_profile / T-04 | `ProfileManager` application layer (`EnsureExists`, `GetByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-03 | FEATURE_user_profile / T-05, T-06, T-07 |
+| FEATURE_user_profile / T-05 | Auth integration: profile initialisation on login (`AuthManager` extended, `UserManager.BootstrapAdmin` returns user, server wiring) | FEATURE_user_profile / T-03, T-04, FEATURE_authentication / application | FEATURE_authentication / cmd/server |
+| FEATURE_user_profile / T-06 | Profile HTTP endpoints (`GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`) | FEATURE_user_profile / T-04 | — |
+| FEATURE_user_profile / T-07 | List users endpoint (`GET /users` with pagination and field selection) | FEATURE_user_profile / T-04 | — |
