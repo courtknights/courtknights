@@ -81,6 +81,7 @@ func buildProviders(cfg Config) map[domainuser.Provider]oauth2.Provider {
 			AuthURL:       cfg.Google.AuthURL,
 			TokenURL:      cfg.Google.TokenURL,
 			DeviceAuthURL: cfg.Google.DeviceAuthURL,
+			UserInfoURL:   cfg.Google.UserInfoURL,
 		}, nil)
 	}
 
@@ -92,6 +93,7 @@ func buildProviders(cfg Config) map[domainuser.Provider]oauth2.Provider {
 			AuthURL:       cfg.GitHub.AuthURL,
 			TokenURL:      cfg.GitHub.TokenURL,
 			DeviceAuthURL: cfg.GitHub.DeviceAuthURL,
+			UserInfoURL:   cfg.GitHub.UserInfoURL,
 		}, nil)
 	}
 

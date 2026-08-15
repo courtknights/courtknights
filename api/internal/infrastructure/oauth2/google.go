@@ -30,12 +30,16 @@ type GoogleConfig struct {
 	// DeviceAuthURL overrides Google's device authorization endpoint.
 	// Leave empty to use the production URL. Set for local mock servers.
 	DeviceAuthURL string
+	// UserInfoURL overrides Google's userinfo endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	UserInfoURL string
 }
 
 // GoogleProvider implements Provider for Google OAuth2.
 type GoogleProvider struct {
-	cfg        *oauth2.Config
-	httpClient *http.Client
+	cfg         *oauth2.Config
+	httpClient  *http.Client
+	userInfoURL string
 }
 
 // NewGoogle returns a GoogleProvider configured with the given credentials.
@@ -60,6 +64,11 @@ func NewGoogle(cfg GoogleConfig, httpClient *http.Client) *GoogleProvider {
 		endpoint.DeviceAuthURL = cfg.DeviceAuthURL
 	}
 
+	userInfoURL := googleUserInfoURL
+	if cfg.UserInfoURL != "" {
+		userInfoURL = cfg.UserInfoURL
+	}
+
 	return &GoogleProvider{
 		cfg: &oauth2.Config{
 			ClientID:     cfg.ClientID,
@@ -68,7 +77,8 @@ func NewGoogle(cfg GoogleConfig, httpClient *http.Client) *GoogleProvider {
 			Scopes:       []string{"openid", "email", "profile"},
 			Endpoint:     endpoint,
 		},
-		httpClient: httpClient,
+		httpClient:  httpClient,
+		userInfoURL: userInfoURL,
 	}
 }
 
@@ -123,7 +133,7 @@ func (g *GoogleProvider) DevicePoll(ctx context.Context, deviceCode string) (*Us
 
 // fetchUserInfo retrieves the authenticated user's profile from Google's userinfo endpoint.
 func (g *GoogleProvider) fetchUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleUserInfoURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.userInfoURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("google: userinfo request: %w", err)
 	}
@@ -133,11 +143,15 @@ func (g *GoogleProvider) fetchUserInfo(ctx context.Context, accessToken string) 
 	if err != nil {
 		return nil, fmt.Errorf("google: userinfo: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("google: read userinfo: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google: userinfo: unexpected status %d: %s", resp.StatusCode, body)
 	}
 
 	var info struct {

@@ -73,6 +73,7 @@ take precedence over flag defaults.
 | `--google-auth-url` | `COURTKNIGHTS_GOOGLE_AUTH_URL` | _(Google production URL)_ | Override authorization endpoint — use for local mocks |
 | `--google-token-url` | `COURTKNIGHTS_GOOGLE_TOKEN_URL` | _(Google production URL)_ | Override token endpoint — use for local mocks |
 | `--google-device-auth-url` | `COURTKNIGHTS_GOOGLE_DEVICE_AUTH_URL` | _(Google production URL)_ | Override device authorization endpoint — use for local mocks |
+| `--google-userinfo-url` | `COURTKNIGHTS_GOOGLE_USERINFO_URL` | _(Google production URL)_ | Override userinfo endpoint — use for local mocks |
 
 When `--google-client-id` is empty the Google provider is disabled and returns `501`.
 
@@ -86,6 +87,7 @@ When `--google-client-id` is empty the Google provider is disabled and returns `
 | `--github-auth-url` | `COURTKNIGHTS_GITHUB_AUTH_URL` | _(GitHub production URL)_ | Override authorization endpoint — use for local mocks |
 | `--github-token-url` | `COURTKNIGHTS_GITHUB_TOKEN_URL` | _(GitHub production URL)_ | Override token endpoint — use for local mocks |
 | `--github-device-auth-url` | `COURTKNIGHTS_GITHUB_DEVICE_AUTH_URL` | _(GitHub production URL)_ | Override device authorization endpoint — use for local mocks |
+| `--github-userinfo-url` | `COURTKNIGHTS_GITHUB_USERINFO_URL` | _(GitHub production URL)_ | Override userinfo endpoint — use for local mocks |
 
 When `--github-client-id` is empty the GitHub provider is disabled and returns `501`.
 
@@ -147,12 +149,19 @@ make build
   --google-redirect-url    http://localhost:8080/auth/google/callback \
   --google-auth-url        http://localhost:8090/google/authorize \
   --google-token-url       http://localhost:8090/google/token \
+  --google-userinfo-url    http://localhost:8090/google/userinfo \
   --github-client-id       mock-client \
   --github-client-secret   mock-secret \
   --github-redirect-url    http://localhost:8080/auth/github/callback \
   --github-auth-url        http://localhost:8090/github/authorize \
-  --github-token-url       http://localhost:8090/github/token
+  --github-token-url       http://localhost:8090/github/token \
+  --github-userinfo-url    http://localhost:8090/github/userinfo
 ```
+
+> The mock's `email`/`name` claims only end up on the issued JWT if you fill
+> them into the **"Optional claims JSON value"** field on the mock's
+> interactive login page (e.g. `{"email": "dev@example.com", "name": "Dev User"}`) —
+> the `subject` field alone only sets `sub`.
 
 ### Step 4 — log in via the browser
 
