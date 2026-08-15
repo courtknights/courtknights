@@ -1,4 +1,4 @@
-package users
+package profile
 
 import (
 	"context"
@@ -59,8 +59,8 @@ var _ appprofile.ProfileManager = (*mockProfileManager)(nil)
 
 // ---- helpers ----
 
-func newProfileTestHandler(profiles appprofile.ProfileManager) (*Handler, *echo.Echo) {
-	return NewHandler(&mockAuthManager{}, profiles), echo.New()
+func newTestHandler(manager appprofile.ProfileManager) (*Handler, *echo.Echo) {
+	return NewHandler(manager), echo.New()
 }
 
 func contextWithAuthAndSub(e *echo.Echo, method, target, body, sub string) (echo.Context, *httptest.ResponseRecorder) {
@@ -111,7 +111,7 @@ func TestGetMyProfile_ReturnsProfile(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("GetByUserID", mock.Anything, userID).Return(p, nil)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := contextWithAuthAndSub(e, http.MethodGet, "/api/v1/users/me/profile", "", userID.String())
 
 	err := h.getMyProfile(c)
@@ -130,7 +130,7 @@ func TestGetMyProfile_ProfileNotFound_Returns404(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("GetByUserID", mock.Anything, userID).Return(nil, ckerrors.ErrProfileNotFound)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodGet, "/api/v1/users/me/profile", "", userID.String())
 
 	err := h.getMyProfile(c)
@@ -143,7 +143,7 @@ func TestGetMyProfile_ProfileNotFound_Returns404(t *testing.T) {
 // HP-03: Missing / invalid sub claim returns 400.
 func TestGetMyProfile_InvalidSub_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodGet, "/api/v1/users/me/profile", "", "not-a-uuid")
 
 	err := h.getMyProfile(c)
@@ -155,7 +155,7 @@ func TestGetMyProfile_InvalidSub_Returns400(t *testing.T) {
 // HP-03b: Sub claim absent returns 400.
 func TestGetMyProfile_MissingSub_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/profile", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -181,7 +181,7 @@ func TestUpdateMyProfile_DisplayNameOnly_Returns200(t *testing.T) {
 		return patch.DisplayName != nil && *patch.DisplayName == newName
 	})).Return(p, nil)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
 		`{"display_name":"X"}`, userID.String())
 
@@ -210,7 +210,7 @@ func TestUpdateMyProfile_AllFields_Returns200(t *testing.T) {
 		"preferences": {"court_side": "drive", "handedness": "right"}
 	}`
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile", body, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -225,7 +225,7 @@ func TestUpdateMyProfile_InvalidCountry_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, errors.New("invalid country code"))
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
 		`{"country":"XX"}`, userID.String())
 
@@ -242,7 +242,7 @@ func TestUpdateMyProfile_RegionWithoutCountry_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, errors.New("region requires country"))
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
 		`{"region":"ES-MD"}`, userID.String())
 
@@ -258,7 +258,7 @@ func TestUpdateMyProfile_InvalidGender_Returns400(t *testing.T) {
 	userID := uuid.New()
 	mgr := &mockProfileManager{}
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
 		`{"gender":"unknown"}`, userID.String())
 
@@ -280,7 +280,7 @@ func TestUpdateMyProfile_EmptyBody_Returns200(t *testing.T) {
 			patch.Gender == nil && patch.Category == nil
 	})).Return(p, nil)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile", `{}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -298,7 +298,7 @@ func TestGetUserProfile_ValidID_Returns200(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("GetByUserID", mock.Anything, userID).Return(p, nil)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	requesterID := uuid.New().String()
 	c, rec := contextWithAuthAndSub(e, http.MethodGet, fmt.Sprintf("/api/v1/users/%s/profile", userID), "", requesterID)
 	c.SetParamNames("id")
@@ -317,7 +317,7 @@ func TestGetUserProfile_ProfileNotFound_Returns404(t *testing.T) {
 	mgr := &mockProfileManager{}
 	mgr.On("GetByUserID", mock.Anything, userID).Return(nil, ckerrors.ErrProfileNotFound)
 
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	requesterID := uuid.New().String()
 	c, _ := contextWithAuthAndSub(e, http.MethodGet, fmt.Sprintf("/api/v1/users/%s/profile", userID), "", requesterID)
 	c.SetParamNames("id")
@@ -333,7 +333,7 @@ func TestGetUserProfile_ProfileNotFound_Returns404(t *testing.T) {
 // HP-12: Malformed UUID in path → 400.
 func TestGetUserProfile_MalformedUUID_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newProfileTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	requesterID := uuid.New().String()
 	c, _ := contextWithAuthAndSub(e, http.MethodGet, "/api/v1/users/not-a-uuid/profile", "", requesterID)
 	c.SetParamNames("id")
