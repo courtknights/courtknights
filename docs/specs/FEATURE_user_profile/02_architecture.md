@@ -1,6 +1,6 @@
 # FEATURE_user_profile — Architecture
 
-- **Last updated:** 2026-04-02
+- **Last updated:** 2026-08-15
 - **Status:** approved
 - **Issue:** [#93](https://github.com/courtknights/courtknights/issues/93)
 
@@ -12,7 +12,7 @@
 ┌─────────────────────────────────────────────────────┐
 │                   Backend (Echo)                    │
 │                                                     │
-│  /api/v1/users      ──►  api/users/handler          │
+│  /api/v1/users      ──►  api/profile/handler        │
 │  /api/v1/users/me/profile                           │
 │  /api/v1/users/:id/profile                          │
 │                          │                          │
@@ -47,12 +47,18 @@ api/internal/
     postgres/
       profile_repository.go  # ProfileRepository implementation
   api/
-    users/
-      handler.go          # Extended with profile endpoints (existing file)
-      routes.go           # Extended with new routes (existing file)
+    profile/
+      handler.go          # Handler { manager appprofile.ProfileManager }
+      routes.go            # GET/PUT /users/me/profile, GET /users/:id/profile, GET /users
 ```
 
-The existing `api/users/` module is extended rather than replaced. `AuthManager` is also extended to call `ProfileRepository.EnsureExists` on every login (idempotent profile initialisation).
+Profile endpoints live in their own `api/profile/` Handler — per ADR-008, a
+Handler holds exactly one feature manager, so mixing `ProfileManager` into the
+existing `users.Handler` (which holds `AuthManager`) would violate the
+single-entry-point rule. `AuthManager` still composes `ProfileManager` as a
+sub-manager for the one auth-owned use case: calling
+`ProfileRepository.EnsureExists` on every login (idempotent profile
+initialisation).
 
 ---
 

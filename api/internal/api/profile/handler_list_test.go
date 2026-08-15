@@ -1,4 +1,4 @@
-package users
+package profile
 
 import (
 	"encoding/json"
@@ -16,10 +16,6 @@ import (
 )
 
 // ---- helpers ----
-
-func newListTestHandler(profiles *mockProfileManager) (*Handler, *echo.Echo) {
-	return NewHandler(&mockAuthManager{}, profiles), echo.New()
-}
 
 func buildListRequest(e *echo.Echo, query string) (echo.Context, *httptest.ResponseRecorder) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users"+query, nil)
@@ -46,7 +42,7 @@ func TestListUsers_DefaultParams_Returns200(t *testing.T) {
 	mgr.On("List", mock.Anything, profile.ListParams{Page: 1, PageSize: 20, Fields: nil}).
 		Return(items, int64(2), nil)
 
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := buildListRequest(e, "")
 
 	err := h.listUsers(c)
@@ -68,7 +64,7 @@ func TestListUsers_ExplicitPageAndPageSize_Returns200(t *testing.T) {
 	mgr.On("List", mock.Anything, profile.ListParams{Page: 2, PageSize: 5, Fields: nil}).
 		Return([]*profile.ProfileListItem{}, int64(10), nil)
 
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := buildListRequest(e, "?page=2&page_size=5")
 
 	err := h.listUsers(c)
@@ -108,7 +104,7 @@ func TestListUsers_FieldSelection_Returns200(t *testing.T) {
 		Fields:   []string{"id", "display_name", "country"},
 	}).Return([]*profile.ProfileListItem{item}, int64(1), nil)
 
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := buildListRequest(e, "?fields=id,display_name,country")
 
 	err := h.listUsers(c)
@@ -131,7 +127,7 @@ func TestListUsers_FieldSelection_Returns200(t *testing.T) {
 // LU-04: page_size exceeds 100 → 400.
 func TestListUsers_PageSizeExceedsMax_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := buildListRequest(e, "?page_size=101")
 
 	err := h.listUsers(c)
@@ -144,7 +140,7 @@ func TestListUsers_PageSizeExceedsMax_Returns400(t *testing.T) {
 // LU-05: page less than 1 → 400.
 func TestListUsers_PageLessThanOne_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := buildListRequest(e, "?page=0")
 
 	err := h.listUsers(c)
@@ -157,7 +153,7 @@ func TestListUsers_PageLessThanOne_Returns400(t *testing.T) {
 // LU-06: Unknown field name → 400.
 func TestListUsers_UnknownField_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := buildListRequest(e, "?fields=id,unknown_field")
 
 	err := h.listUsers(c)
@@ -173,7 +169,7 @@ func TestListUsers_EmptyResult_Returns200(t *testing.T) {
 	mgr.On("List", mock.Anything, profile.ListParams{Page: 1, PageSize: 20, Fields: nil}).
 		Return([]*profile.ProfileListItem{}, int64(0), nil)
 
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, rec := buildListRequest(e, "")
 
 	err := h.listUsers(c)
@@ -193,7 +189,7 @@ func TestListUsers_ManagerError_Returns500(t *testing.T) {
 	mgr.On("List", mock.Anything, mock.Anything).
 		Return(nil, int64(0), assert.AnError)
 
-	h, e := newListTestHandler(mgr)
+	h, e := newTestHandler(mgr)
 	c, _ := buildListRequest(e, "")
 
 	err := h.listUsers(c)

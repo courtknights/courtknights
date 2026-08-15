@@ -12,6 +12,7 @@ import (
 	apiauth "github.com/courtknights/courtknights/internal/api/auth"
 	"github.com/courtknights/courtknights/internal/api/common"
 	"github.com/courtknights/courtknights/internal/api/pats"
+	apiprofile "github.com/courtknights/courtknights/internal/api/profile"
 	"github.com/courtknights/courtknights/internal/api/users"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
 	appprofile "github.com/courtknights/courtknights/internal/application/profile"
@@ -60,7 +61,8 @@ func runServer(ctx context.Context, cfg Config) error {
 	router := api.New()
 	router.MountPublic("/auth", apiauth.NewRoutes(apiauth.NewHandler(authManager)))
 	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), pats.NewRoutes(pats.NewHandler(authManager)))
-	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), users.NewRoutes(users.NewHandler(authManager, profileManager)))
+	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), users.NewRoutes(users.NewHandler(authManager)))
+	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), apiprofile.NewRoutes(apiprofile.NewHandler(profileManager)))
 
 	// ---- start server ----
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
