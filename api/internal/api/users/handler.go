@@ -359,7 +359,7 @@ func (h *Handler) listUsers(c echo.Context) error {
 
 	data := make([]listItemResponse, len(items))
 	for i, item := range items {
-		data[i] = toListItemResponse(item)
+		data[i] = toListItemResponse(item, fields)
 	}
 
 	return c.JSON(http.StatusOK, listUsersResponse{
@@ -391,7 +391,8 @@ type listItemResponse struct {
 }
 
 // toListItemResponse converts a domain ProfileListItem to its API response form.
-func toListItemResponse(item *profile.ProfileListItem) listItemResponse {
+// When fields is non-empty, only the requested fields are populated in the result.
+func toListItemResponse(item *profile.ProfileListItem, fields []string) listItemResponse {
 	r := listItemResponse{
 		DisplayName: item.DisplayName,
 		City:        item.City,
@@ -410,5 +411,37 @@ func toListItemResponse(item *profile.ProfileListItem) listItemResponse {
 		s := string(*item.Category)
 		r.Category = &s
 	}
-	return r
+
+	if len(fields) == 0 {
+		return r
+	}
+
+	requested := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		requested[f] = struct{}{}
+	}
+
+	filtered := listItemResponse{}
+	if _, ok := requested["id"]; ok {
+		filtered.ID = r.ID
+	}
+	if _, ok := requested["display_name"]; ok {
+		filtered.DisplayName = r.DisplayName
+	}
+	if _, ok := requested["city"]; ok {
+		filtered.City = r.City
+	}
+	if _, ok := requested["region"]; ok {
+		filtered.Region = r.Region
+	}
+	if _, ok := requested["country"]; ok {
+		filtered.Country = r.Country
+	}
+	if _, ok := requested["gender"]; ok {
+		filtered.Gender = r.Gender
+	}
+	if _, ok := requested["category"]; ok {
+		filtered.Category = r.Category
+	}
+	return filtered
 }

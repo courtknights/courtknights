@@ -83,13 +83,23 @@ func TestListUsers_ExplicitPageAndPageSize_Returns200(t *testing.T) {
 	mgr.AssertExpectations(t)
 }
 
-// LU-03: Field selection — manager called with requested fields.
+// LU-03: Field selection — manager called with requested fields, and the
+// response only includes those fields even when the repository returns a
+// fully-populated item (i.e. filtering happens in the handler, not just
+// as a passthrough parameter).
 func TestListUsers_FieldSelection_Returns200(t *testing.T) {
 	id := uuid.New()
 	idStr := id.String()
 	dn := "Alice"
 	country := "ES"
-	item := &profile.ProfileListItem{ID: &id, DisplayName: &dn, Country: &country}
+	city := "Barcelona"
+	region := "ES-CT"
+	gender := profile.GenderFemale
+	category := profile.CategoryFirst
+	item := &profile.ProfileListItem{
+		ID: &id, DisplayName: &dn, City: &city, Region: &region,
+		Country: &country, Gender: &gender, Category: &category,
+	}
 
 	mgr := &mockProfileManager{}
 	mgr.On("List", mock.Anything, profile.ListParams{
@@ -111,6 +121,10 @@ func TestListUsers_FieldSelection_Returns200(t *testing.T) {
 	assert.Equal(t, &idStr, resp.Data[0].ID)
 	assert.Equal(t, &dn, resp.Data[0].DisplayName)
 	assert.Equal(t, &country, resp.Data[0].Country)
+	assert.Nil(t, resp.Data[0].City, "city was not requested and must be omitted")
+	assert.Nil(t, resp.Data[0].Region, "region was not requested and must be omitted")
+	assert.Nil(t, resp.Data[0].Gender, "gender was not requested and must be omitted")
+	assert.Nil(t, resp.Data[0].Category, "category was not requested and must be omitted")
 	mgr.AssertExpectations(t)
 }
 
