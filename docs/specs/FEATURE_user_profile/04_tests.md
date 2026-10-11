@@ -133,7 +133,7 @@
 
 ## T-06 — API: own-profile and get-by-ID handlers (unit)
 
-**File:** `api/internal/api/users/handler_profile_test.go`
+**File:** `api/internal/api/profile/handler_test.go`
 **Build tag:** none (unit)
 **Test infrastructure:** `net/http/httptest` + Echo test helpers
 **Dependencies mocked:** `ProfileManager` via `testify/mock`
@@ -172,7 +172,7 @@
 
 ## T-07 — API: list users handler (unit)
 
-**File:** `api/internal/api/users/handler_list_test.go`
+**File:** `api/internal/api/profile/handler_list_test.go`
 **Build tag:** none (unit)
 **Test infrastructure:** `net/http/httptest` + Echo test helpers
 **Dependencies mocked:** `ProfileManager` via `testify/mock`

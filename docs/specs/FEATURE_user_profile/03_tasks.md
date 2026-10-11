@@ -138,23 +138,24 @@ The `EnsureExists` call must happen after the user upsert but before signing the
 
 > Depends on T-04.
 
-**Files to modify:**
+**Files to create / modify:**
 
-| File                                | Description                                                                                        |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `api/internal/api/users/handler.go` | Add `profiles ProfileManager` field; implement `getMyProfile`, `updateMyProfile`, `getUserProfile` |
-| `api/internal/api/users/routes.go`  | Register `GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`                |
-| `api/cmd/server/server.go`          | Pass `profileManager` to `users.NewHandler`                                                        |
+| File                                  | Description                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `api/internal/api/profile/handler.go` | New `Handler { manager appprofile.ProfileManager }`; `getMyProfile`, `updateMyProfile`, `getUserProfile` |
+| `api/internal/api/profile/routes.go`  | Register `GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`               |
+| `api/cmd/server/server.go`            | Mount `apiprofile.NewRoutes(apiprofile.NewHandler(profileManager))` on the protected `/api/v1` group |
 
-`users.NewHandler` gains a second parameter: `profiles appprofile.ProfileManager`.
+Profile endpoints live in their own `api/profile/` package rather than in `api/users/`: per ADR-008 each Handler holds exactly one feature manager interface, and `api/users/` belongs to the authentication feature (`AuthManager`).
 
 The authenticated user's ID is read from the JWT context via `common.ContextKeySub` (UUID string — must be parsed).
 
 Error mapping:
 - `ckerrors.ErrProfileNotFound` → `404`
-- validation errors from `ProfileManager.Update` → `400`
+- `ckerrors.ErrInvalidLocation` (and invalid enum / date values in the request) → `400`
+- any other error → `500` with a generic message
 
-**Tests:** unit tests in `api/internal/api/users/handler_profile_test.go` with a mocked `ProfileManager`.
+**Tests:** unit tests in `api/internal/api/profile/handler_test.go` with a mocked `ProfileManager`.
 
 **Acceptance:** `make test` passes.
 
@@ -162,14 +163,14 @@ Error mapping:
 
 ## T-07 — API: list users endpoint · [#102](https://github.com/courtknights/courtknights/issues/102)
 
-> Depends on T-04. `profileManager` is already injected from T-06.
+> Depends on T-06 (`api/profile/` Handler and wiring).
 
 **Files to modify:**
 
-| File                                | Description           |
-| ----------------------------------- | --------------------- |
-| `api/internal/api/users/handler.go` | Implement `listUsers` |
-| `api/internal/api/users/routes.go`  | Register `GET /users` |
+| File                                  | Description           |
+| ------------------------------------- | --------------------- |
+| `api/internal/api/profile/handler.go` | Implement `listUsers` |
+| `api/internal/api/profile/routes.go`  | Register `GET /users` |
 
 Query parameter handling:
 - `page` (default `1`, minimum `1`)
@@ -180,6 +181,6 @@ Allowed field names: `id`, `display_name`, `city`, `region`, `country`, `gender`
 
 Response shape: `{ "data": [...], "total": N, "page": N, "page_size": N }`.
 
-**Tests:** unit tests in `api/internal/api/users/handler_list_test.go` with a mocked `ProfileManager`.
+**Tests:** unit tests in `api/internal/api/profile/handler_list_test.go` with a mocked `ProfileManager`.
 
 **Acceptance:** `make test` passes.
