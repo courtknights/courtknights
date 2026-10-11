@@ -91,8 +91,10 @@ func (h *Handler) updateMyProfile(c echo.Context) error {
 		if errors.Is(err, ckerrors.ErrProfileNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "profile not found")
 		}
-		// Validation errors from the manager (invalid location codes, etc.) are 400.
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		if errors.Is(err, ckerrors.ErrInvalidLocation) {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update profile")
 	}
 
 	return c.JSON(http.StatusOK, toProfileResponse(p))
@@ -210,15 +212,17 @@ func toPreferences(r *preferencesRequest) (profile.Preferences, error) {
 }
 
 // profileResponse is the JSON representation of a Profile returned by the API.
+// Nullable fields have no omitempty: per AC-02 they are always present and
+// serialise as null when unset.
 type profileResponse struct {
 	UserID      string              `json:"user_id"`
 	DisplayName string              `json:"display_name"`
-	City        *string             `json:"city,omitempty"`
-	Region      *string             `json:"region,omitempty"`
-	Country     *string             `json:"country,omitempty"`
-	Gender      *string             `json:"gender,omitempty"`
-	DateOfBirth *string             `json:"date_of_birth,omitempty"`
-	Category    *string             `json:"category,omitempty"`
+	City        *string             `json:"city"`
+	Region      *string             `json:"region"`
+	Country     *string             `json:"country"`
+	Gender      *string             `json:"gender"`
+	DateOfBirth *string             `json:"date_of_birth"`
+	Category    *string             `json:"category"`
 	Preferences preferencesResponse `json:"preferences"`
 	UpdatedAt   string              `json:"updated_at"`
 }

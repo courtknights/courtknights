@@ -302,6 +302,9 @@ Authorization: Bearer <jwt>
 }
 ```
 
+Nullable fields (`city`, `region`, `country`, `gender`, `date_of_birth`, `category`)
+are always present in the response and serialise as `null` when unset (AC-02).
+
 ### Update own profile
 
 ```
@@ -330,6 +333,9 @@ Content-Type: application/json
 
 **Errors:**
 - `400` — invalid ISO code, unknown enum value, or region without country.
+  Location failures wrap `ckerrors.ErrInvalidLocation`, which the handler maps to 400.
+- `500` — any other failure (e.g. database error); the response carries a generic
+  message and never the internal error text.
 
 ### Get profile by ID
 

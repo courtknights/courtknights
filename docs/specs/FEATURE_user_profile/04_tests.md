@@ -146,6 +146,7 @@
 | HP-01 | Returns own profile | Manager returns `*Profile` | 200 with full profile JSON |
 | HP-02 | Profile not found | Manager returns `ErrProfileNotFound` | 404 |
 | HP-03 | Missing JWT / invalid sub claim | JWT context absent | 401 (middleware) or 400 |
+| HP-14 | Unset nullable fields | Manager returns `*Profile` with only `display_name` | 200; `city`, `region`, `country`, `gender`, `date_of_birth`, `category` present as `null` |
 
 ### PUT /users/me/profile
 
@@ -153,10 +154,11 @@
 |----|-------------|-------------|---------------|--------------|
 | HP-04 | Partial update — display_name only | `{"display_name":"X"}` | Manager returns updated `*Profile` | 200 with updated profile JSON |
 | HP-05 | Full update — all fields | All fields present | Manager returns `*Profile` | 200 |
-| HP-06 | Invalid country code | `{"country":"XX"}` | Manager returns validation error | 400 |
-| HP-07 | Region without country | `{"region":"ES-MD"}` | Manager returns validation error | 400 |
+| HP-06 | Invalid country code | `{"country":"XX"}` | Manager returns `ErrInvalidLocation` | 400 |
+| HP-07 | Region without country | `{"region":"ES-MD"}` | Manager returns `ErrInvalidLocation` | 400 |
 | HP-08 | Unknown enum value for gender | `{"gender":"unknown"}` | Deserialisation or manager error | 400 |
 | HP-09 | Empty body (all fields omitted) | `{}` | Manager called with all-nil patch; returns existing profile | 200 |
+| HP-13 | Non-validation manager error | `{"display_name":"X"}` | Manager returns a non-`ErrInvalidLocation` error | 500, internal error text not exposed |
 
 ### GET /users/:id/profile
 

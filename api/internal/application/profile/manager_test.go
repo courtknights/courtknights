@@ -158,7 +158,7 @@ func TestProfileManager_Update_InvalidCountry_ReturnsErrorWithoutCallingRepo(t *
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
 
-	require.Error(t, err)
+	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
 	repo.AssertNotCalled(t, "Update")
 }
 
@@ -171,7 +171,7 @@ func TestProfileManager_Update_RegionWithoutCountry_ReturnsErrorWithoutCallingRe
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
 
-	require.Error(t, err)
+	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
 	repo.AssertNotCalled(t, "Update")
 }
 
@@ -184,7 +184,7 @@ func TestProfileManager_Update_MismatchedRegion_ReturnsErrorWithoutCallingRepo(t
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
 
-	require.Error(t, err)
+	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
 	repo.AssertNotCalled(t, "Update")
 }
 
