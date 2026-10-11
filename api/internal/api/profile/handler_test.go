@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -124,6 +125,35 @@ func TestGetMyProfile_ReturnsProfile(t *testing.T) {
 	mgr.AssertExpectations(t)
 }
 
+// HP-14: Unset nullable fields are present in the response as null (AC-02).
+func TestGetMyProfile_UnsetFields_SerialisedAsNull(t *testing.T) {
+	userID := uuid.New()
+	p := &profile.Profile{
+		UserID:      userID,
+		DisplayName: "New User",
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	mgr := &mockProfileManager{}
+	mgr.On("GetByUserID", mock.Anything, userID).Return(p, nil)
+
+	h, e := newTestHandler(mgr)
+	c, rec := contextWithAuthAndSub(e, http.MethodGet, "/api/v1/users/me/profile", "", userID.String())
+
+	require.NoError(t, h.getMyProfile(c))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	for _, key := range []string{"city", "region", "country", "gender", "date_of_birth", "category"} {
+		v, present := body[key]
+		assert.True(t, present, "key %q must be present", key)
+		assert.Nil(t, v, "key %q must be null", key)
+	}
+	assert.Contains(t, body, "preferences")
+	mgr.AssertExpectations(t)
+}
+
 // HP-02: Profile not found returns 404.
 func TestGetMyProfile_ProfileNotFound_Returns404(t *testing.T) {
 	userID := uuid.New()
@@ -223,7 +253,7 @@ func TestUpdateMyProfile_AllFields_Returns200(t *testing.T) {
 func TestUpdateMyProfile_InvalidCountry_Returns400(t *testing.T) {
 	userID := uuid.New()
 	mgr := &mockProfileManager{}
-	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, errors.New("invalid country code"))
+	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, fmt.Errorf("%w: invalid country code", ckerrors.ErrInvalidLocation))
 
 	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
@@ -240,7 +270,7 @@ func TestUpdateMyProfile_InvalidCountry_Returns400(t *testing.T) {
 func TestUpdateMyProfile_RegionWithoutCountry_Returns400(t *testing.T) {
 	userID := uuid.New()
 	mgr := &mockProfileManager{}
-	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, errors.New("region requires country"))
+	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, fmt.Errorf("%w: region requires country", ckerrors.ErrInvalidLocation))
 
 	h, e := newTestHandler(mgr)
 	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
@@ -250,6 +280,25 @@ func TestUpdateMyProfile_RegionWithoutCountry_Returns400(t *testing.T) {
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
+	mgr.AssertExpectations(t)
+}
+
+// HP-13: Non-validation manager error (e.g. database failure) → 500 without leaking internals.
+func TestUpdateMyProfile_ManagerError_Returns500(t *testing.T) {
+	userID := uuid.New()
+	mgr := &mockProfileManager{}
+	mgr.On("Update", mock.Anything, userID, mock.Anything).
+		Return(nil, errors.New("profile manager: Update: postgres: connection refused"))
+
+	h, e := newTestHandler(mgr)
+	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+		`{"display_name":"X"}`, userID.String())
+
+	err := h.updateMyProfile(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusInternalServerError, he.Code)
+	assert.NotContains(t, fmt.Sprint(he.Message), "postgres")
 	mgr.AssertExpectations(t)
 }
 

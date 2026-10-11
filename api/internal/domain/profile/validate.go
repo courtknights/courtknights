@@ -6,10 +6,13 @@ import (
 	"strings"
 
 	"github.com/biter777/countries"
+
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 )
 
 // ValidateLocation returns an error if country or region are not valid ISO codes,
-// or if region is provided without country.
+// or if region is provided without country. Every returned error wraps
+// ckerrors.ErrInvalidLocation.
 // Uses an embedded dataset — no external API call.
 //
 // Rules:
@@ -18,6 +21,13 @@ import (
 //   - region non-nil: country must also be non-nil; region must be a valid ISO 3166-2
 //     code for that country.
 func ValidateLocation(country, region *string) error {
+	if err := validateLocation(country, region); err != nil {
+		return fmt.Errorf("%w: %w", ckerrors.ErrInvalidLocation, err)
+	}
+	return nil
+}
+
+func validateLocation(country, region *string) error {
 	if country == nil && region == nil {
 		return nil
 	}

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 )
 
 func ptr(s string) *string {
@@ -94,7 +96,7 @@ func TestValidateLocation(t *testing.T) {
 		t.Run(tc.id+"_"+tc.name, func(t *testing.T) {
 			err := ValidateLocation(tc.country, tc.region)
 			if tc.wantErr {
-				assert.Error(t, err, "expected an error but got none")
+				assert.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
 			} else {
 				assert.NoError(t, err, "expected no error but got: %v", err)
 			}

@@ -26,8 +26,9 @@ type ProfileManager interface {
 
 	// Update validates the patch and applies it to the user's profile.
 	// If Country or Region are non-nil, location codes are validated before
-	// the repository is called. Returns a validation error without calling
-	// the repository if any code is invalid.
+	// the repository is called. If any code is invalid it returns an error
+	// wrapping ckerrors.ErrInvalidLocation without calling the repository;
+	// that error is returned unprefixed so its message is safe to show to clients.
 	Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error)
 
 	// List returns a paginated list of profiles joined with basic user data.
@@ -66,7 +67,7 @@ func (m *profileManager) GetByUserID(ctx context.Context, userID uuid.UUID) (*pr
 func (m *profileManager) Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error) {
 	if patch.Country != nil || patch.Region != nil {
 		if err := profile.ValidateLocation(patch.Country, patch.Region); err != nil {
-			return nil, fmt.Errorf("profile manager: Update: %w", err)
+			return nil, err
 		}
 	}
 
