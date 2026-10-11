@@ -30,12 +30,16 @@ type GitHubConfig struct {
 	// DeviceAuthURL overrides GitHub's device authorization endpoint.
 	// Leave empty to use the production URL. Set for local mock servers.
 	DeviceAuthURL string
+	// UserInfoURL overrides GitHub's user endpoint.
+	// Leave empty to use the production URL. Set for local mock servers.
+	UserInfoURL string
 }
 
 // GitHubProvider implements Provider for GitHub OAuth2.
 type GitHubProvider struct {
-	cfg        *oauth2.Config
-	httpClient *http.Client
+	cfg         *oauth2.Config
+	httpClient  *http.Client
+	userInfoURL string
 }
 
 // NewGitHub returns a GitHubProvider configured with the given credentials.
@@ -66,6 +70,11 @@ func NewGitHub(cfg GitHubConfig, httpClient *http.Client) *GitHubProvider {
 		endpoint.DeviceAuthURL = cfg.DeviceAuthURL
 	}
 
+	userInfoURL := githubUserURL
+	if cfg.UserInfoURL != "" {
+		userInfoURL = cfg.UserInfoURL
+	}
+
 	return &GitHubProvider{
 		cfg: &oauth2.Config{
 			ClientID:     cfg.ClientID,
@@ -74,7 +83,8 @@ func NewGitHub(cfg GitHubConfig, httpClient *http.Client) *GitHubProvider {
 			Scopes:       []string{"read:user", "user:email"},
 			Endpoint:     endpoint,
 		},
-		httpClient: httpClient,
+		httpClient:  httpClient,
+		userInfoURL: userInfoURL,
 	}
 }
 
@@ -129,7 +139,7 @@ func (g *GitHubProvider) DevicePoll(ctx context.Context, deviceCode string) (*Us
 
 // fetchUserInfo retrieves the authenticated user's profile from the GitHub API.
 func (g *GitHubProvider) fetchUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubUserURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.userInfoURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("github: userinfo request: %w", err)
 	}
@@ -140,11 +150,15 @@ func (g *GitHubProvider) fetchUserInfo(ctx context.Context, accessToken string) 
 	if err != nil {
 		return nil, fmt.Errorf("github: userinfo: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("github: read userinfo: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github: userinfo: unexpected status %d: %s", resp.StatusCode, body)
 	}
 
 	var info struct {
