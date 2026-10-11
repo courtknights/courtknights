@@ -198,27 +198,37 @@ type ProfileListItem struct {
 
 ### ProfileManager
 
+Per ADR-008's manager convention: an exported interface, an unexported struct,
+and a constructor that returns the interface.
+
 ```go
 // application/profile/manager.go
 
-type ProfileManager struct {
+type ProfileManager interface {
+    // EnsureExists delegates to the repository (called by AuthManager on login).
+    EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error
+
+    // GetByUserID returns a profile, returning ErrProfileNotFound if absent.
+    GetByUserID(ctx context.Context, userID uuid.UUID) (*profile.Profile, error)
+
+    // Update validates the patch (location codes, enum values) and persists it.
+    Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error)
+
+    // List returns a paginated list with the requested fields.
+    List(ctx context.Context, params profile.ListParams) ([]*profile.ProfileListItem, int64, error)
+}
+
+type profileManager struct {
     profiles profile.ProfileRepository
 }
 
-func NewProfileManager(profiles profile.ProfileRepository) *ProfileManager
-
-// EnsureExists delegates to the repository (called by AuthManager on login).
-func (m *ProfileManager) EnsureExists(ctx context.Context, userID uuid.UUID, displayName string) error
-
-// GetByUserID returns a profile, returning ErrProfileNotFound if absent.
-func (m *ProfileManager) GetByUserID(ctx context.Context, userID uuid.UUID) (*profile.Profile, error)
-
-// Update validates the patch (location codes, enum values) and persists it.
-func (m *ProfileManager) Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error)
-
-// List returns a paginated list with the requested fields.
-func (m *ProfileManager) List(ctx context.Context, params profile.ListParams) ([]*profile.ProfileListItem, int64, error)
+func NewProfileManager(profiles profile.ProfileRepository) ProfileManager
 ```
+
+`AuthManager` does not depend on this interface directly — it declares its own
+narrower `ProfileInitializer` interface (just `EnsureExists`) in
+`application/auth/manager.go`, so the auth package isn't coupled to profile
+operations (`GetByUserID`, `Update`, `List`) it never calls.
 
 Validation in `Update`:
 1. If `Country` or `Region` are set, call `profile.ValidateLocation`.
