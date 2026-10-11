@@ -12,8 +12,10 @@ import (
 	apiauth "github.com/courtknights/courtknights/internal/api/auth"
 	"github.com/courtknights/courtknights/internal/api/common"
 	"github.com/courtknights/courtknights/internal/api/pats"
+	apiprofile "github.com/courtknights/courtknights/internal/api/profile"
 	"github.com/courtknights/courtknights/internal/api/users"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	appprofile "github.com/courtknights/courtknights/internal/application/profile"
 	domainuser "github.com/courtknights/courtknights/internal/domain/user"
 	"github.com/courtknights/courtknights/internal/infrastructure/jwt"
 	"github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -32,6 +34,7 @@ func runServer(ctx context.Context, cfg Config) error {
 	// ---- repositories ----
 	userRepo := postgres.NewUserRepository(db)
 	patRepo := postgres.NewPATRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 
 	// ---- jwt adapter ----
 	jwtAdapter, err := jwt.NewWithConfig(cfg.JWT.Secret, cfg.JWT.Expiry)
@@ -46,7 +49,8 @@ func runServer(ctx context.Context, cfg Config) error {
 	userManager := appauth.NewUserManager(userRepo, patRepo)
 	jwtManager := appauth.NewJWTManager(jwtAdapter)
 	oauthManager := appauth.NewOAuthManager(providers)
-	authManager := appauth.NewAuthManager(userManager, jwtManager, oauthManager)
+	profileManager := appprofile.NewProfileManager(profileRepo)
+	authManager := appauth.NewAuthManager(userManager, jwtManager, oauthManager, profileManager)
 
 	// ---- bootstrap admin ----
 	if err := runBootstrap(ctx, cfg.Bootstrap, authManager); err != nil {
@@ -58,6 +62,7 @@ func runServer(ctx context.Context, cfg Config) error {
 	router.MountPublic("/auth", apiauth.NewRoutes(apiauth.NewHandler(authManager)))
 	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), pats.NewRoutes(pats.NewHandler(authManager)))
 	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), users.NewRoutes(users.NewHandler(authManager)))
+	router.MountProtected("/api/v1", common.JWTMiddleware(jwtManager), apiprofile.NewRoutes(apiprofile.NewHandler(profileManager)))
 
 	// ---- start server ----
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

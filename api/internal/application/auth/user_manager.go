@@ -21,7 +21,7 @@ type UserManager interface {
 	CreatePAT(ctx context.Context, userID uuid.UUID, expiresAt *time.Time) (string, error)
 	RevokePAT(ctx context.Context, id uuid.UUID) error
 	ListPATs(ctx context.Context) ([]*pat.PAT, error)
-	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error)
+	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (*user.User, string, error)
 	UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error
 }
 
@@ -134,18 +134,18 @@ func (m *userManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role
 	return nil
 }
 
-func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (string, error) {
+func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (*user.User, string, error) {
 	count, err := m.users.CountAll(ctx)
 	if err != nil {
-		return "", fmt.Errorf("user manager: BootstrapAdmin: count users: %w", err)
+		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: count users: %w", err)
 	}
 	if count > 0 {
-		return "", nil
+		return nil, "", nil
 	}
 
 	salt, err := generateSalt()
 	if err != nil {
-		return "", fmt.Errorf("user manager: BootstrapAdmin: generate salt: %w", err)
+		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: generate salt: %w", err)
 	}
 
 	savedPAT, err := m.pats.Save(ctx, &pat.PAT{
@@ -153,18 +153,19 @@ func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT st
 		Salt:    salt,
 	})
 	if err != nil {
-		return "", fmt.Errorf("user manager: BootstrapAdmin: save PAT: %w", err)
+		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: save PAT: %w", err)
 	}
 
-	if _, err := m.users.Upsert(ctx, &user.User{
+	u, err := m.users.Upsert(ctx, &user.User{
 		Email:      email,
 		Name:       name,
 		Role:       user.RoleAdmin,
 		Provider:   user.ProviderPAT,
 		ProviderID: savedPAT.ID.String(),
-	}); err != nil {
-		return "", fmt.Errorf("user manager: BootstrapAdmin: upsert user: %w", err)
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: upsert user: %w", err)
 	}
 
-	return rawPAT, nil
+	return u, rawPAT, nil
 }

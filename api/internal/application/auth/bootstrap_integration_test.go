@@ -108,7 +108,7 @@ func TestBootstrapAdmin_EmptyDB_CreatesAdminAndPAT(t *testing.T) {
 	truncateTables(t)
 	mgr := newUserManagerForIntegration()
 
-	rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
+	_, rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
 	require.NoError(t, err)
 	assert.Equal(t, "bootstrap-secret", rawPAT, "raw PAT must be returned on first bootstrap")
 
@@ -130,11 +130,11 @@ func TestBootstrapAdmin_NonEmptyDB_IsNoOp(t *testing.T) {
 	mgr := newUserManagerForIntegration()
 
 	// First bootstrap creates the admin
-	_, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "secret-1")
+	_, _, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "secret-1")
 	require.NoError(t, err)
 
 	// Second bootstrap must be a no-op
-	result, err := mgr.BootstrapAdmin(context.Background(), "other@example.com", "Other", "secret-2")
+	_, result, err := mgr.BootstrapAdmin(context.Background(), "other@example.com", "Other", "secret-2")
 	require.NoError(t, err)
 	assert.Empty(t, result, "second bootstrap must return empty string")
 
