@@ -378,16 +378,17 @@ Authorization: Bearer <jwt>
 
 ## Routing changes
 
-`api/users/routes.go` adds:
+New `api/profile/routes.go`, mounted on the protected `/api/v1` group in `server.go`:
 
 ```
-GET  /api/v1/users                     → handler.ListUsers
-GET  /api/v1/users/me/profile          → handler.GetMyProfile
-PUT  /api/v1/users/me/profile          → handler.UpdateMyProfile
-GET  /api/v1/users/:id/profile         → handler.GetUserProfile
+GET  /api/v1/users                     → handler.listUsers
+GET  /api/v1/users/me/profile          → handler.getMyProfile
+PUT  /api/v1/users/me/profile          → handler.updateMyProfile
+GET  /api/v1/users/:id/profile         → handler.getUserProfile
 ```
 
-Existing routes (`GET /api/v1/users/me`, `PUT /api/v1/users/:id/role`) are unchanged.
+Existing routes in `api/users/routes.go` (`GET /api/v1/users/me`, `PUT /api/v1/users/:id/role`) are unchanged.
+The paths do not collide: Echo resolves the static `/users/me/profile` before the `/users/:id/profile` parameter route.
 
 ---
 
