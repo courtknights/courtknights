@@ -158,6 +158,7 @@ func buildUpdateQuery(setClauses []string, whereIdx int) string {
 
 // List implements profile.ProfileRepository.
 // Returns a paginated list of profiles joined with the users table, ordered by display_name ASC.
+// Ties are broken by user ID so that LIMIT/OFFSET pagination is stable across pages.
 // The second return value is the total count of profiles across all pages.
 func (r *ProfileRepository) List(ctx context.Context, params profile.ListParams) ([]*profile.ProfileListItem, int64, error) {
 	offset := (params.Page - 1) * params.PageSize
@@ -183,7 +184,7 @@ func (r *ProfileRepository) List(ctx context.Context, params profile.ListParams)
 			p.category
 		FROM users u
 		JOIN user_profiles p ON p.user_id = u.id
-		ORDER BY p.display_name ASC
+		ORDER BY p.display_name ASC, u.id ASC
 		LIMIT $1 OFFSET $2`
 
 	rows, err := r.db.Query(ctx, q, params.PageSize, offset)

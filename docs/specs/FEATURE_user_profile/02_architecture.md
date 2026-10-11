@@ -268,7 +268,7 @@ A migration adds this table. No changes to `users` table.
 - `EnsureExists`: `INSERT INTO user_profiles ... ON CONFLICT (user_id) DO NOTHING`
 - `FindByUserID`: simple SELECT by `user_id`
 - `Update`: dynamic UPDATE building only the non-nil patch fields; returns the updated row
-- `List`: `SELECT u.id, p.display_name, p.city, ... FROM users u JOIN user_profiles p ON p.user_id = u.id ORDER BY p.display_name LIMIT $1 OFFSET $2`
+- `List`: `SELECT u.id, p.display_name, p.city, ... FROM users u JOIN user_profiles p ON p.user_id = u.id ORDER BY p.display_name, u.id LIMIT $1 OFFSET $2` (`u.id` breaks ties so pagination is stable)
 
 ---
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -424,5 +425,43 @@ func TestProfileRepository_List_PageBeyondTotal(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Errorf("expected empty slice, got %d items", len(items))
+	}
+}
+
+// PR-15: Profiles sharing a display_name are paginated in a stable order
+// (tie-broken by user ID): every user appears exactly once across pages.
+func TestProfileRepository_List_StableOrderForDuplicateDisplayNames(t *testing.T) {
+	truncate(t)
+	repo := NewProfileRepository(testDB)
+
+	const n = 10
+	want := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		id := createTestUser(t, "Same Name")
+		if err := repo.EnsureExists(context.Background(), id, "Same Name"); err != nil {
+			t.Fatalf("EnsureExists: %v", err)
+		}
+		want = append(want, id.String())
+	}
+	sort.Strings(want)
+
+	var got []string
+	for page := 1; page <= 4; page++ {
+		items, _, err := repo.List(context.Background(), profile.ListParams{Page: page, PageSize: 3})
+		if err != nil {
+			t.Fatalf("List page %d: %v", page, err)
+		}
+		for _, item := range items {
+			got = append(got, item.ID.String())
+		}
+	}
+
+	if len(got) != n {
+		t.Fatalf("items across pages: got %d, want %d", len(got), n)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order across pages: got %v, want %v (ascending user ID)", got, want)
+		}
 	}
 }

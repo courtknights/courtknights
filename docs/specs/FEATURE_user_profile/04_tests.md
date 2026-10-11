@@ -70,6 +70,7 @@
 | PR-12 | Pagination — first page | Page=1, PageSize=2, 5 profiles in DB | 2 items returned; total=5 |
 | PR-13 | Pagination — last page | Page=3, PageSize=2, 5 profiles in DB | 1 item returned; total=5 |
 | PR-14 | Page beyond total | Page=10, PageSize=2, 5 profiles in DB | Empty slice; total=5 |
+| PR-15 | Stable order for duplicate display names | 10 profiles with the same `display_name`, paged with PageSize=3 | Every user appears exactly once across pages, ordered by user ID ASC |
 
 ---
 
