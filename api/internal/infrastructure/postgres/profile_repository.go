@@ -63,73 +63,34 @@ func (r *ProfileRepository) FindByUserID(ctx context.Context, userID uuid.UUID) 
 }
 
 // Update implements profile.ProfileRepository.
-// Only non-nil patch fields are applied. Returns the updated profile row.
+// It applies a JSON Merge Patch (ADR-015): a set field writes its value, a
+// cleared field writes NULL, and preferences are merged into the stored JSONB
+// inside the UPDATE so concurrent writes of different keys are not lost.
+// An empty patch returns the current profile without writing.
 func (r *ProfileRepository) Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error) {
-	setClauses := make([]string, 0, 8)
-	args := make([]any, 0, 9)
-	idx := 1
-
-	if patch.DisplayName != nil {
-		setClauses = append(setClauses, fmt.Sprintf("display_name = $%d", idx))
-		args = append(args, *patch.DisplayName)
-		idx++
-	}
-	if patch.City != nil {
-		setClauses = append(setClauses, fmt.Sprintf("city = $%d", idx))
-		args = append(args, *patch.City)
-		idx++
-	}
-	if patch.Region != nil {
-		setClauses = append(setClauses, fmt.Sprintf("region = $%d", idx))
-		args = append(args, *patch.Region)
-		idx++
-	}
-	if patch.Country != nil {
-		setClauses = append(setClauses, fmt.Sprintf("country = $%d", idx))
-		args = append(args, *patch.Country)
-		idx++
-	}
-	if patch.Gender != nil {
-		setClauses = append(setClauses, fmt.Sprintf("gender = $%d", idx))
-		args = append(args, *patch.Gender)
-		idx++
-	}
-	if patch.DateOfBirth != nil {
-		setClauses = append(setClauses, fmt.Sprintf("date_of_birth = $%d", idx))
-		args = append(args, *patch.DateOfBirth)
-		idx++
-	}
-	if patch.Category != nil {
-		setClauses = append(setClauses, fmt.Sprintf("category = $%d", idx))
-		args = append(args, *patch.Category)
-		idx++
-	}
-	if patch.Preferences != nil {
-		prefsJSON, err := json.Marshal(patch.Preferences)
-		if err != nil {
-			return nil, fmt.Errorf("postgres: Update profile marshal preferences: %w", err)
-		}
-		setClauses = append(setClauses, fmt.Sprintf("preferences = $%d", idx))
-		args = append(args, prefsJSON)
-		idx++
-	}
-
-	if len(setClauses) == 0 {
-		// Nothing to update — return the current profile unchanged.
+	if patch.IsEmpty() {
 		return r.FindByUserID(ctx, userID)
 	}
 
-	// Always update updated_at.
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", idx))
-	args = append(args, time.Now().UTC())
-	idx++
+	var b updateBuilder
+	if patch.DisplayName != nil {
+		b.set("display_name", *patch.DisplayName)
+	}
+	setField(&b, "city", patch.City)
+	setField(&b, "region", patch.Region)
+	setField(&b, "country", patch.Country)
+	setField(&b, "gender", patch.Gender)
+	setField(&b, "date_of_birth", patch.DateOfBirth)
+	setField(&b, "category", patch.Category)
+	if err := b.mergePreferences(patch.Preferences); err != nil {
+		return nil, fmt.Errorf("postgres: Update profile: %w", err)
+	}
+	b.set("updated_at", time.Now().UTC())
 
-	// Append userID as the final argument for the WHERE clause.
-	args = append(args, userID)
+	b.args = append(b.args, userID)
+	q := buildUpdateQuery(b.clauses, len(b.args))
 
-	q := buildUpdateQuery(setClauses, idx)
-
-	row := r.db.QueryRow(ctx, q, args...)
+	row := r.db.QueryRow(ctx, q, b.args...)
 	p, err := scanProfile(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -141,6 +102,74 @@ func (r *ProfileRepository) Update(ctx context.Context, userID uuid.UUID, patch 
 		return nil, fmt.Errorf("postgres: Update profile: %w", err)
 	}
 	return p, nil
+}
+
+// updateBuilder collects the SET clauses of an UPDATE and their arguments.
+type updateBuilder struct {
+	clauses []string
+	args    []any
+}
+
+// arg appends v to the arguments and returns its placeholder ($n).
+func (b *updateBuilder) arg(v any) string {
+	b.args = append(b.args, v)
+	return fmt.Sprintf("$%d", len(b.args))
+}
+
+// set adds "column = $n". A nil value writes NULL.
+func (b *updateBuilder) set(column string, v any) {
+	b.clauses = append(b.clauses, column+" = "+b.arg(v))
+}
+
+// setField adds a SET clause for a merge-patch field: nothing when the field
+// is unchanged, NULL when it is cleared, its value otherwise.
+func setField[T any](b *updateBuilder, column string, f profile.Field[T]) {
+	if !f.Set {
+		return
+	}
+	if f.Value == nil {
+		b.set(column, nil)
+		return
+	}
+	b.set(column, *f.Value)
+}
+
+// mergePreferences adds the SET clause that merges a preferences patch into
+// the stored JSONB: start from {} when the patch clears all preferences, add
+// the members with a value, then remove the members that are null.
+func (b *updateBuilder) mergePreferences(p profile.PreferencesPatch) error {
+	if p.IsEmpty() {
+		return nil
+	}
+	set := map[string]any{}
+	var remove []string
+	mergePreference(set, &remove, "court_side", p.CourtSide)
+	mergePreference(set, &remove, "handedness", p.Handedness)
+
+	setJSON, err := json.Marshal(set)
+	if err != nil {
+		return fmt.Errorf("marshal preferences: %w", err)
+	}
+	if remove == nil {
+		remove = []string{}
+	}
+	b.clauses = append(b.clauses, fmt.Sprintf(
+		"preferences = ((CASE WHEN %s THEN '{}'::jsonb ELSE preferences END) || %s::jsonb) - %s::text[]",
+		b.arg(p.Clear), b.arg(setJSON), b.arg(remove)))
+	return nil
+}
+
+// mergePreference records one preference member under its JSON key (the same
+// key as in profile.Preferences): in set when it has a value, in remove when
+// it is cleared.
+func mergePreference[T any](set map[string]any, remove *[]string, key string, f profile.Field[T]) {
+	switch {
+	case !f.Set:
+	case f.Value == nil:
+		*remove = append(*remove, key)
+	default:
+		set[key] = *f.Value
+	}
 }
 
 // regionCountryConstraint is the CHECK constraint that keeps a profile's region

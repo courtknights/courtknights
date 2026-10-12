@@ -65,8 +65,8 @@ func (m *profileManager) GetByUserID(ctx context.Context, userID uuid.UUID) (*pr
 }
 
 func (m *profileManager) Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error) {
-	if patch.Country != nil || patch.Region != nil {
-		if err := profile.ValidateLocation(patch.Country, patch.Region); err != nil {
+	if patch.Country.Set || patch.Region.Set {
+		if err := profile.ValidateLocation(patch.Country.Value, patch.Region.Value); err != nil {
 			return nil, err
 		}
 	}

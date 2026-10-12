@@ -137,7 +137,7 @@ func TestProfileManager_Update_NoLocationFields_SkipsValidation_CallsRepo(t *tes
 func TestProfileManager_Update_ValidCountryAndRegion_CallsRepo(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("ES"), Region: ptr("ES-MD")}
+	patch := profile.ProfilePatch{Country: profile.SetTo("ES"), Region: profile.SetTo("ES-MD")}
 	updated := &profile.Profile{UserID: userID, DisplayName: "Alice", Country: ptr("ES"), Region: ptr("ES-MD"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	repo.On("Update", mock.Anything, userID, patch).Return(updated, nil)
 
@@ -153,7 +153,7 @@ func TestProfileManager_Update_ValidCountryAndRegion_CallsRepo(t *testing.T) {
 func TestProfileManager_Update_InvalidCountry_ReturnsErrorWithoutCallingRepo(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("XX")}
+	patch := profile.ProfilePatch{Country: profile.SetTo("XX")}
 
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
@@ -166,7 +166,7 @@ func TestProfileManager_Update_InvalidCountry_ReturnsErrorWithoutCallingRepo(t *
 func TestProfileManager_Update_RegionWithoutCountry_ReturnsErrorWithoutCallingRepo(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{Region: ptr("ES-MD")}
+	patch := profile.ProfilePatch{Region: profile.SetTo("ES-MD")}
 
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
@@ -179,7 +179,7 @@ func TestProfileManager_Update_RegionWithoutCountry_ReturnsErrorWithoutCallingRe
 func TestProfileManager_Update_MismatchedRegion_ReturnsErrorWithoutCallingRepo(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("ES"), Region: ptr("FR-75")}
+	patch := profile.ProfilePatch{Country: profile.SetTo("ES"), Region: profile.SetTo("FR-75")}
 
 	mgr := newTestManager(repo)
 	_, err := mgr.Update(context.Background(), userID, patch)
