@@ -301,16 +301,21 @@ TASK-001 (the design branch may only touch `docs/specs/`). Proposed content:
 - Migration 005 must run before the new code is deployed (the repository maps
   the constraint violation; older code works with or without it).
 
+## Resolved decisions
+
+Answered by the human architect on 2026-10-12:
+
+1. **Unknown members → `400`.** Top-level and `preferences` members that the
+   API does not know are rejected, so a typo such as `"date_of_brith"` is
+   never silently ignored.
+2. **`CHECK` constraint + `409`.** Migration 005 and `ErrProfileConflict` are
+   kept (TASK-002) as defense in depth against the read-validate-write race.
+3. **ADR-015 is a global convention.** Every future partial-update endpoint
+   uses `PATCH` with RFC 7396 and the same rules (TASK-001).
+4. **Same country keeps the region.** `{"country": "ES"}` on `ES` / `ES-MD`
+   leaves `ES-MD`; the region is cleared only when the country actually
+   changes or is cleared (rule 2 of *Location rules*).
+
 ## Open questions
 
-1. **Unknown members → `400`?** Recommended (catches typos such as
-   `"date_of_brith"`). The current `PUT` ignores them, and RFC 7396 itself is
-   permissive.
-2. **`CHECK` constraint + `409`?** Recommended as defense in depth against the
-   read-validate-write race. Without it, TASK-003 is dropped and a race can
-   store a region from another country.
-3. **ADR-015 as a global convention** (applies to future partial updates) or a
-   feature-local decision recorded only in this spec?
-4. **`country` set to its current value with `region` omitted** keeps the
-   region (rule 2). Confirm this is the intended reading of "cleared or
-   changed".
+None.
