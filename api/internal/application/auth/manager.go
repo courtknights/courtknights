@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -113,14 +115,26 @@ func (m *authManager) ExchangePAT(ctx context.Context, rawPAT string) (string, e
 	return m.jwt.Sign(u)
 }
 
+// RefreshJWT issues a new JWT for the user identified by a valid token. The new
+// token is built from the user's current record, not from the old claims, so
+// role and email changes take effect and deleted users cannot refresh (#134).
+// Returns an error wrapping ckerrors.ErrUnauthorized when the token is invalid
+// or its user no longer exists.
 func (m *authManager) RefreshJWT(ctx context.Context, tokenStr string) (string, error) {
 	claims, err := m.jwt.Validate(tokenStr)
 	if err != nil {
 		return "", fmt.Errorf("auth manager: RefreshJWT: %w", err)
 	}
-	u := &user.User{Email: claims.Email, Role: claims.Role}
-	if id, err := parseUUID(claims.Subject); err == nil {
-		u.ID = id
+	id, err := parseUUID(claims.Subject)
+	if err != nil {
+		return "", fmt.Errorf("auth manager: RefreshJWT: invalid subject: %w", ckerrors.ErrUnauthorized)
+	}
+	u, err := m.user.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, ckerrors.ErrUserNotFound) {
+			return "", fmt.Errorf("auth manager: RefreshJWT: %w: %w", ckerrors.ErrUnauthorized, err)
+		}
+		return "", fmt.Errorf("auth manager: RefreshJWT: %w", err)
 	}
 	return m.jwt.Sign(u)
 }

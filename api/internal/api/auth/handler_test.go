@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -483,7 +484,7 @@ func TestRefreshJWT_ValidToken_Returns200WithNewJWT(t *testing.T) {
 func TestRefreshJWT_ExpiredToken_Returns401(t *testing.T) {
 	mgr := &mockAuthManager{}
 	mgr.On("RefreshJWT", mock.Anything, "expired-jwt").
-		Return("", errors.New("token expired"))
+		Return("", fmt.Errorf("auth manager: RefreshJWT: jwt: validate: %w", ckerrors.ErrUnauthorized))
 
 	h, e := newTestHandler(mgr)
 	body := `{"token":"expired-jwt"}`
@@ -509,4 +510,21 @@ func TestRefreshJWT_MissingToken_Returns400(t *testing.T) {
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+// #134: a refresh that fails for a reason other than an invalid token or a
+// missing user (e.g. the database is down) is a server error, not a 401.
+func TestRefreshJWT_InternalError_Returns500(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("RefreshJWT", mock.Anything, "valid-jwt").
+		Return("", errors.New("auth manager: RefreshJWT: user manager: FindByID: connection refused"))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(`{"token":"valid-jwt"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+	err := h.refreshJWT(e.NewContext(req, httptest.NewRecorder()))
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusInternalServerError, he.Code)
 }
