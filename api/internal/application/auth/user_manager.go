@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,10 +51,27 @@ func (m *userManager) ResolveByOAuth(
 		ProviderID: providerID,
 	}
 	result, err := m.users.Upsert(ctx, u)
+	if errors.Is(err, ckerrors.ErrEmailAlreadyRegistered) {
+		return nil, fmt.Errorf("user manager: ResolveByOAuth: %w", m.emailOwnerError(ctx, email))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("user manager: ResolveByOAuth: %w", err)
 	}
 	return result, nil
+}
+
+// emailOwnerError reports which provider already owns email, so the user can
+// be told how to sign in (#132). Naming the provider is safe because the
+// requester has just proven control of the email with a provider that
+// verified it (#131). The provider is left out for "pat" accounts (the
+// bootstrap admin): there is no sign-in button for it, and naming it would
+// only reveal an administrative account.
+func (m *userManager) emailOwnerError(ctx context.Context, email string) error {
+	owner, err := m.users.FindByEmail(ctx, email)
+	if err != nil || owner.Provider == user.ProviderPAT {
+		return &ckerrors.EmailAlreadyRegisteredError{}
+	}
+	return &ckerrors.EmailAlreadyRegisteredError{Provider: string(owner.Provider)}
 }
 
 func (m *userManager) ResolveByPAT(ctx context.Context, rawPAT string) (*user.User, error) {

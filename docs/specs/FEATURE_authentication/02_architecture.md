@@ -143,6 +143,8 @@ All request and response bodies are JSON. Authenticated endpoints require `Autho
 **Callback error responses** (redirect, so the frontend can explain what to do):
 ```
 302 → /?error=email_not_verified      # the provider has no verified email for the user (#131)
+302 → /?error=email_already_registered&provider=google   # the email belongs to another account (#132)
+302 → /?error=email_already_registered                   # same, provider withheld
 ```
 Any other callback failure returns `401 authentication failed`.
 
@@ -157,6 +159,26 @@ provider has **verified**:
 
 If no verified email is available, the login is rejected with
 `ErrEmailNotVerified`.
+
+**Email already registered (#132).** `users.email` is unique and linking
+several providers to one account is out of scope. When a login would give an
+email to a second account (a new identity with a taken email, or an existing
+identity whose provider email changed to a taken one), the login is rejected:
+
+- `UserRepository.Upsert` maps the unique violation on `users_email_key`
+  (`23505`) to `ckerrors.ErrEmailAlreadyRegistered`.
+- `UserManager.ResolveByOAuth` loads the owner with `UserRepository.FindByEmail`
+  and returns `*ckerrors.EmailAlreadyRegisteredError{Provider}`.
+- The handlers send the error code and the owner's provider, so the frontend
+  can say "This email is already registered with Google. Sign in with Google."
+  The email itself is **never** sent.
+- The provider is **withheld** when the owner is the `pat` bootstrap admin
+  (there is no sign-in button for it, and naming it only reveals an
+  administrative account) or when the owner cannot be loaded.
+
+Naming the provider tells the requester an account exists (account
+enumeration). This is acceptable only because the requester has just proven
+control of that email through a provider that verified it (#131).
 
 #### OAuth2 Device Authorization Grant
 
@@ -201,6 +223,7 @@ Error codes follow RFC 8628 §3.5:
 | Device code expired | `400` | `{ "error": "expired_token" }` | Stop; restart the flow |
 | Unknown device code | `400` | `{ "error": "invalid_grant" }` | Stop; restart the flow |
 | Provider has no verified email (#131) | `400` | `{ "error": "email_not_verified" }` | Stop; the user must verify an email with the provider |
+| Email belongs to another account (#132) | `409` | `{ "error": "email_already_registered", "provider": "google" }` (`provider` omitted when withheld) | Stop; sign in with that provider |
 | Provider not configured | `501` | — | Stop |
 | Any other failure | `401` | — | Stop |
 

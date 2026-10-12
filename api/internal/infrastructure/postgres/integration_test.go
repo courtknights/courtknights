@@ -358,3 +358,75 @@ func TestPATRepository_DeletingUser_CascadesToPATs(t *testing.T) {
 		t.Errorf("expected ErrPATNotFound after deleting the user, got: %v", err)
 	}
 }
+
+// ---- #132: email uniqueness ----
+
+func TestUserRepository_FindByEmail(t *testing.T) {
+	truncate(t)
+	repo := NewUserRepository(testDB)
+
+	created, err := repo.Upsert(context.Background(), &user.User{
+		Email: "dana@example.com", Name: "Dana",
+		Role: user.RoleUser, Provider: user.ProviderGitHub, ProviderID: "gh-dana",
+	})
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	found, err := repo.FindByEmail(context.Background(), "dana@example.com")
+	if err != nil {
+		t.Fatalf("FindByEmail: %v", err)
+	}
+	if found.ID != created.ID || found.Provider != user.ProviderGitHub {
+		t.Errorf("got %+v, want user %v with provider github", found, created.ID)
+	}
+
+	if _, err := repo.FindByEmail(context.Background(), "nobody@example.com"); !errors.Is(err, ckerrors.ErrUserNotFound) {
+		t.Errorf("expected ErrUserNotFound, got: %v", err)
+	}
+}
+
+// A new (provider, provider_id) with an email another user owns.
+func TestUserRepository_Upsert_NewIdentityWithTakenEmail_ReturnsErrEmailAlreadyRegistered(t *testing.T) {
+	truncate(t)
+	repo := NewUserRepository(testDB)
+
+	if _, err := repo.Upsert(context.Background(), &user.User{
+		Email: "erin@example.com", Name: "Erin",
+		Role: user.RoleUser, Provider: user.ProviderGoogle, ProviderID: "g-erin",
+	}); err != nil {
+		t.Fatalf("first Upsert: %v", err)
+	}
+
+	_, err := repo.Upsert(context.Background(), &user.User{
+		Email: "erin@example.com", Name: "Erin",
+		Role: user.RoleUser, Provider: user.ProviderGitHub, ProviderID: "gh-erin",
+	})
+	if !errors.Is(err, ckerrors.ErrEmailAlreadyRegistered) {
+		t.Errorf("expected ErrEmailAlreadyRegistered, got: %v", err)
+	}
+}
+
+// An existing identity whose provider email changed to one another user owns
+// (the ON CONFLICT ... DO UPDATE SET email path).
+func TestUserRepository_Upsert_EmailChangedToTakenEmail_ReturnsErrEmailAlreadyRegistered(t *testing.T) {
+	truncate(t)
+	repo := NewUserRepository(testDB)
+
+	for _, u := range []*user.User{
+		{Email: "frank@example.com", Name: "Frank", Role: user.RoleUser, Provider: user.ProviderGoogle, ProviderID: "g-frank"},
+		{Email: "gina@example.com", Name: "Gina", Role: user.RoleUser, Provider: user.ProviderGitHub, ProviderID: "gh-gina"},
+	} {
+		if _, err := repo.Upsert(context.Background(), u); err != nil {
+			t.Fatalf("Upsert %s: %v", u.Email, err)
+		}
+	}
+
+	_, err := repo.Upsert(context.Background(), &user.User{
+		Email: "frank@example.com", Name: "Gina",
+		Role: user.RoleUser, Provider: user.ProviderGitHub, ProviderID: "gh-gina",
+	})
+	if !errors.Is(err, ckerrors.ErrEmailAlreadyRegistered) {
+		t.Errorf("expected ErrEmailAlreadyRegistered, got: %v", err)
+	}
+}

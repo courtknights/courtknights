@@ -208,3 +208,38 @@ func TestCreatePAT_UnknownUser_LeavesNoOrphan(t *testing.T) {
 	require.NoError(t, integrationDB.QueryRow(ctx, "SELECT COUNT(*) FROM personal_access_tokens").Scan(&pats))
 	assert.Equal(t, int64(0), pats)
 }
+
+// #132: signing in with GitHub using an email already registered through
+// Google reports the existing provider and creates no second user.
+func TestResolveByOAuth_EmailRegisteredWithOtherProvider_ReportsProvider(t *testing.T) {
+	truncateTables(t)
+	mgr := newUserManagerForIntegration()
+	ctx := context.Background()
+
+	_, err := mgr.ResolveByOAuth(ctx, user.ProviderGoogle, "google-sub-1", "hana@example.com", "Hana")
+	require.NoError(t, err)
+
+	_, err = mgr.ResolveByOAuth(ctx, user.ProviderGitHub, "github-1", "hana@example.com", "Hana")
+	var conflict *ckerrors.EmailAlreadyRegisteredError
+	require.ErrorAs(t, err, &conflict)
+	assert.Equal(t, "google", conflict.Provider)
+
+	var users int64
+	require.NoError(t, integrationDB.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&users))
+	assert.Equal(t, int64(1), users)
+}
+
+// #132: the bootstrap admin's provider ("pat") is not disclosed.
+func TestResolveByOAuth_EmailOwnedByBootstrapAdmin_WithholdsProvider(t *testing.T) {
+	truncateTables(t)
+	mgr := newUserManagerForIntegration()
+	ctx := context.Background()
+
+	_, _, err := mgr.BootstrapAdmin(ctx, "admin@example.com", "Admin", "bootstrap-secret")
+	require.NoError(t, err)
+
+	_, err = mgr.ResolveByOAuth(ctx, user.ProviderGoogle, "google-admin", "admin@example.com", "Admin")
+	var conflict *ckerrors.EmailAlreadyRegisteredError
+	require.ErrorAs(t, err, &conflict)
+	assert.Empty(t, conflict.Provider)
+}

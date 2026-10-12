@@ -4,6 +4,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/labstack/echo/v4"
 
@@ -61,6 +62,13 @@ func (h *Handler) oauthCallback(c echo.Context) error {
 		if errCode, ok := callbackErrorCode(err); ok {
 			return c.Redirect(http.StatusFound, "/?error="+errCode)
 		}
+		if provider, ok := emailConflictProvider(err); ok {
+			target := "/?error=email_already_registered"
+			if provider != "" {
+				target += "&provider=" + url.QueryEscape(provider)
+			}
+			return c.Redirect(http.StatusFound, target)
+		}
 		return echo.NewHTTPError(http.StatusUnauthorized, "authentication failed")
 	}
 
@@ -115,6 +123,13 @@ func (h *Handler) deviceToken(c echo.Context) error {
 		}
 		if errCode, ok := callbackErrorCode(err); ok {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": errCode})
+		}
+		if provider, ok := emailConflictProvider(err); ok {
+			body := map[string]string{"error": "email_already_registered"}
+			if provider != "" {
+				body["provider"] = provider
+			}
+			return c.JSON(http.StatusConflict, body)
 		}
 		if errors.Is(err, appauth.ErrProviderNotConfigured) {
 			return providerError(err)
