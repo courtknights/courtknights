@@ -7,8 +7,8 @@
 
 > This document is written and owned by the human architect. This draft
 > transcribes the requirements of #121 so they can be reviewed; edit freely,
-> then set **Status: approved** (required by the `spec-ref` CI check before any
-> task PR can merge).
+> then change the status line above to `approved` (the `spec-ref` CI check
+> requires it before any task PR can merge).
 
 ---
 
