@@ -23,6 +23,8 @@ type UserManager interface {
 	ListPATs(ctx context.Context) ([]*pat.PAT, error)
 	BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (*user.User, string, error)
 	UpdateUserRole(ctx context.Context, userID uuid.UUID, role user.Role) error
+	// FindByID returns the current user record. Returns ckerrors.ErrUserNotFound if absent.
+	FindByID(ctx context.Context, id uuid.UUID) (*user.User, error)
 }
 
 type userManager struct {
@@ -132,6 +134,14 @@ func (m *userManager) UpdateUserRole(ctx context.Context, userID uuid.UUID, role
 		return fmt.Errorf("user manager: UpdateUserRole: %w", err)
 	}
 	return nil
+}
+
+func (m *userManager) FindByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
+	u, err := m.users.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("user manager: FindByID: %w", err)
+	}
+	return u, nil
 }
 
 func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT string) (*user.User, string, error) {

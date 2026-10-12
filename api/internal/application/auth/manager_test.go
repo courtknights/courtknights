@@ -238,22 +238,74 @@ func TestAuthManager_ExchangePAT_InvalidPAT_ReturnsErrInvalidPAT(t *testing.T) {
 
 // ---- RefreshJWT ----
 
-func TestAuthManager_RefreshJWT_ValidToken_ReturnsNewJWT(t *testing.T) {
-	jwtAdapt := &mockJWTAdapter{}
-
+// #134: the new token is signed from the current user record, not the old claims.
+func TestAuthManager_RefreshJWT_SignsCurrentUserRecord(t *testing.T) {
+	userID := uuid.New()
 	claims := &jwtinfra.Claims{}
-	claims.Subject = uuid.New().String()
-	claims.Email = "dave@example.com"
-	claims.Role = user.RoleUser
+	claims.Subject = userID.String()
+	claims.Email = "old@example.com"
+	claims.Role = user.RoleAdmin // stale: the user was demoted since this token was issued
 
+	current := &user.User{ID: userID, Email: "dave@example.com", Role: user.RoleUser}
+	userRepo := &mockUserRepository{}
+	userRepo.On("FindByID", mock.Anything, userID).Return(current, nil)
+
+	jwtAdapt := &mockJWTAdapter{}
 	jwtAdapt.On("Validate", "old-token").Return(claims, nil)
-	jwtAdapt.On("Sign", mock.AnythingOfType("*user.User")).Return("new-jwt", nil)
+	jwtAdapt.On("Sign", current).Return("new-jwt", nil)
 
-	mgr := newTestAuthManager(&mockUserRepository{}, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt, &mockProfileManager{})
+	mgr := newTestAuthManager(userRepo, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt, &mockProfileManager{})
 
 	token, err := mgr.RefreshJWT(context.Background(), "old-token")
 	require.NoError(t, err)
 	assert.Equal(t, "new-jwt", token)
+	jwtAdapt.AssertCalled(t, "Sign", current)
+}
+
+func TestAuthManager_RefreshJWT_RejectsTokenWithoutCurrentUser(t *testing.T) {
+	userID := uuid.New()
+	tests := []struct {
+		name    string
+		subject string
+		repoErr error
+	}{
+		{"deleted user", userID.String(), fmt.Errorf("postgres: FindByID: %w", ckerrors.ErrUserNotFound)},
+		{"non-UUID subject", "not-a-uuid", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			claims := &jwtinfra.Claims{}
+			claims.Subject = tc.subject
+			userRepo := &mockUserRepository{}
+			if tc.repoErr != nil {
+				userRepo.On("FindByID", mock.Anything, userID).Return(nil, tc.repoErr)
+			}
+			jwtAdapt := &mockJWTAdapter{}
+			jwtAdapt.On("Validate", "tok").Return(claims, nil)
+
+			mgr := newTestAuthManager(userRepo, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt, &mockProfileManager{})
+
+			_, err := mgr.RefreshJWT(context.Background(), "tok")
+			require.ErrorIs(t, err, ckerrors.ErrUnauthorized)
+			jwtAdapt.AssertNotCalled(t, "Sign", mock.Anything)
+		})
+	}
+}
+
+func TestAuthManager_RefreshJWT_RepositoryFailure_IsNotUnauthorized(t *testing.T) {
+	userID := uuid.New()
+	claims := &jwtinfra.Claims{}
+	claims.Subject = userID.String()
+	userRepo := &mockUserRepository{}
+	userRepo.On("FindByID", mock.Anything, userID).Return(nil, errors.New("connection refused"))
+	jwtAdapt := &mockJWTAdapter{}
+	jwtAdapt.On("Validate", "tok").Return(claims, nil)
+
+	mgr := newTestAuthManager(userRepo, &mockPATRepository{}, map[user.Provider]oauth2infra.Provider{}, jwtAdapt, &mockProfileManager{})
+
+	_, err := mgr.RefreshJWT(context.Background(), "tok")
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ckerrors.ErrUnauthorized)
 }
 
 func TestAuthManager_RefreshJWT_ExpiredToken_ReturnsErrUnauthorized(t *testing.T) {

@@ -163,7 +163,9 @@ func TestMain(m *testing.M) {
 | 7 | `TestAuthService_ExchangePAT_ReturnsJWTForValidPAT` | unit | `ResolveByPAT` returns user; `Sign` returns token |
 | 8 | `TestAuthService_ExchangePAT_ReturnsErrInvalidPAT` | unit | `ResolveByPAT` returns `ErrInvalidPAT`; service propagates error; `Sign` NOT called |
 | 9 | `TestAuthService_ExchangePAT_ReturnsErrPATExpired` | unit | `ResolveByPAT` returns `ErrPATExpired`; propagated to caller |
-| 10 | `TestAuthService_RefreshJWT_ReturnsNewTokenForValidClaims` | unit | Valid claims → `Sign` returns new token with same `sub`, `email`, `role` |
+| 10 | `TestAuthManager_RefreshJWT_SignsCurrentUserRecord` | unit | Valid token → the user is loaded by `sub` and `Sign` receives the **current** record; a stale `role` claim is ignored (#134) |
+| 10a | `TestAuthManager_RefreshJWT_RejectsTokenWithoutCurrentUser` | unit | Deleted user or non-UUID `sub` → `ErrUnauthorized`; `Sign` is not called (#134) |
+| 10b | `TestAuthManager_RefreshJWT_RepositoryFailure_IsNotUnauthorized` | unit | Repository failure → error that is not `ErrUnauthorized` (#134) |
 
 ---
 
@@ -253,6 +255,7 @@ func TestMain(m *testing.M) {
 | 5 | `TestAuthHandler_PostRefresh_Returns200WithNewJWT` | unit | `POST /auth/refresh` with valid JWT → `200`; body contains new `token` |
 | 6 | `TestAuthHandler_PostRefresh_Returns401WithExpiredJWT` | unit | `POST /auth/refresh` with expired JWT → `401 Unauthorized` |
 | 7 | `TestAuthHandler_PostRefresh_Returns401WithMissingJWT` | unit | `POST /auth/refresh` with no `Authorization` header → `401 Unauthorized` |
+| 8 | `TestRefreshJWT_InternalError_Returns500` | unit | `RefreshJWT` fails with a non-`ErrUnauthorized` error → `500` (#134) |
 
 ---
 

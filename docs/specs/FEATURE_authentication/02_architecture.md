@@ -225,11 +225,29 @@ Error codes follow RFC 8628 §3.5:
 | ------ | --------------- | ---------------------------------------------- |
 | `POST` | `/auth/refresh` | Issues a new JWT given a valid non-expired JWT |
 
-**Request:** `Authorization: Bearer <jwt>` (no body required)
+**Request:**
+```json
+{ "token": "<jwt>" }
+```
 **Response:**
 ```json
-{ "token": "<jwt>", "expires_in": 3600 }
+{ "token": "<jwt>" }
 ```
+
+The new token is built from the user's **current** record (loaded by the
+token's `sub`), not copied from the old claims (#134). Role and email changes
+therefore take effect on the next refresh: a demoted admin's refreshed token
+has `role: user`.
+
+| Outcome | Status |
+|---------|--------|
+| Valid token, user exists | `200` |
+| Missing `token` in body | `400` |
+| Invalid or expired token, non-UUID `sub`, or user no longer exists | `401` |
+| Any other failure (e.g. database unavailable) | `500` |
+
+A token stays valid until its `exp` even after a role change. The JWT expiry
+(default 1 h) bounds that window.
 
 ### PAT management endpoints (protected — admin only)
 

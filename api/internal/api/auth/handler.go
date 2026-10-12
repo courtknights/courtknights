@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	"github.com/courtknights/courtknights/internal/domain/user"
 )
 
@@ -154,7 +155,10 @@ func (h *Handler) refreshJWT(c echo.Context) error {
 
 	newToken, err := h.manager.RefreshJWT(c.Request().Context(), req.Token)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+		if errors.Is(err, ckerrors.ErrUnauthorized) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to refresh token")
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"token": newToken})
