@@ -21,7 +21,7 @@ type Router struct {
 func New() *Router {
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(echomw.Logger())
+	e.Use(echomw.RequestLogger())
 	e.Use(echomw.Recover())
 	return &Router{echo: e}
 }
