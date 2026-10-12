@@ -147,23 +147,41 @@ func TestCreatePAT_InvalidUserID_Returns400(t *testing.T) {
 
 // ---- GET /api/v1/pats ----
 
-func TestListPATs_Returns200WithPATList(t *testing.T) {
-	now := time.Now()
+// #135: the list never exposes key hashes or salts, and uses snake_case fields.
+func TestListPATs_AsAdmin_Returns200WithoutSecrets(t *testing.T) {
+	created := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	expires := created.Add(24 * time.Hour)
+	id1, id2 := uuid.New(), uuid.New()
 	pats := []*pat.PAT{
-		{ID: uuid.New(), KeyHash: "hash1", Salt: "salt1", CreatedAt: now},
+		{ID: id1, KeyHash: "secret-hash-1", Salt: "secret-salt-1", CreatedAt: created},
+		{ID: id2, KeyHash: "secret-hash-2", Salt: "secret-salt-2", CreatedAt: created, ExpiresAt: &expires},
 	}
 	mgr := &mockAuthManager{}
 	mgr.On("ListPATs", mock.Anything).Return(pats, nil)
 
 	h, e := newTestHandler(mgr)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/pats", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.Set(common.ContextKeyRole, string(user.RoleUser))
+	c, rec := contextWithRole(e, http.MethodGet, "/api/v1/pats", "", string(user.RoleAdmin))
+
+	require.NoError(t, h.listPATs(c))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `[
+		{"id":"`+id1.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":null},
+		{"id":"`+id2.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":"2026-10-13T09:00:00Z"}
+	]`, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "secret")
+}
+
+// #135: listing PATs is admin only, like creating and revoking them.
+func TestListPATs_AsNonAdmin_Returns403(t *testing.T) {
+	mgr := &mockAuthManager{}
+	h, e := newTestHandler(mgr)
+	c, _ := contextWithRole(e, http.MethodGet, "/api/v1/pats", "", string(user.RoleUser))
 
 	err := h.listPATs(c)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusForbidden, he.Code)
+	mgr.AssertNotCalled(t, "ListPATs", mock.Anything)
 }
 
 func TestListPATs_ManagerError_Returns500(t *testing.T) {
@@ -171,15 +189,12 @@ func TestListPATs_ManagerError_Returns500(t *testing.T) {
 	mgr.On("ListPATs", mock.Anything).Return(nil, errors.New("db error"))
 
 	h, e := newTestHandler(mgr)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/pats", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
+	c, _ := contextWithRole(e, http.MethodGet, "/api/v1/pats", "", string(user.RoleAdmin))
 
 	err := h.listPATs(c)
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
-	_ = rec
 }
 
 // ---- DELETE /api/v1/pats/:id ----

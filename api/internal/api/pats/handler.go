@@ -59,15 +59,30 @@ func (h *Handler) createPAT(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]string{"token": rawKey})
 }
 
-// listPATs returns all PATs. Authenticated users only.
+// patResponse is the public representation of a PAT. It never includes the
+// key hash or salt (#135).
+type patResponse struct {
+	ID        string     `json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+// listPATs returns all PATs, without their secrets. Admin only.
 // GET /api/v1/pats
 func (h *Handler) listPATs(c echo.Context) error {
+	if !common.IsAdmin(c) {
+		return echo.NewHTTPError(http.StatusForbidden, "admin role required")
+	}
 	pats, err := h.manager.ListPATs(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list PATs")
 	}
 
-	return c.JSON(http.StatusOK, pats)
+	resp := make([]patResponse, len(pats))
+	for i, p := range pats {
+		resp[i] = patResponse{ID: p.ID.String(), CreatedAt: p.CreatedAt, ExpiresAt: p.ExpiresAt}
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 // revokePAT deletes a PAT by ID. Admin only.

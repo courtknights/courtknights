@@ -268,7 +268,8 @@ func TestMain(m *testing.M) {
 | 1 | `TestPATHandler_PostPATs_Returns201WithRawPATAsAdmin` | unit | Admin JWT; `POST /api/v1/pats` → `201`; body contains `id`, `pat`, `expires_at` |
 | 2 | `TestPATHandler_PostPATs_Returns403AsNonAdmin` | unit | Non-admin JWT; `POST /api/v1/pats` → `403 Forbidden` |
 | 3 | `TestPATHandler_PostPATs_Returns401WithNoJWT` | unit | No JWT → `401 Unauthorized` |
-| 4 | `TestPATHandler_GetPATs_Returns200WithList` | unit | `GET /api/v1/pats` with valid JWT → `200`; body is an array |
+| 4 | `TestListPATs_AsAdmin_Returns200WithoutSecrets` | unit | `GET /api/v1/pats` as admin → `200`; snake_case `id`, `created_at`, `expires_at`; no key hash or salt (#135) |
+| 4a | `TestListPATs_AsNonAdmin_Returns403` | unit | `GET /api/v1/pats` as a regular user → `403`; the manager is not called (#135) |
 | 5 | `TestPATHandler_DeletePAT_Returns204AsAdmin` | unit | Admin JWT; `DELETE /api/v1/pats/:id` → `204 No Content` |
 | 6 | `TestPATHandler_DeletePAT_Returns403AsNonAdmin` | unit | Non-admin JWT; `DELETE /api/v1/pats/:id` → `403 Forbidden` |
 | 7 | `TestPATHandler_DeletePAT_Returns404ForUnknownID` | unit | `RevokePAT` returns `ErrPATNotFound` → `404 Not Found` |
