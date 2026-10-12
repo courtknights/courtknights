@@ -154,7 +154,7 @@ TASK-001 and TASK-002 are independent of each other.
 - **Done when:**
   - [ ] Unit tests for `DecodeMergePatch` (both media types, charset, 415, non-object 400)
   - [ ] Handler unit tests for every member in the *API design* table (value, `null`, blank, wrong type) and every error status
-  - [ ] `PUT /users/me/profile` returns `405`
+  - [ ] `PUT /users/me/profile` returns `404` (like any unregistered method on the protected API)
   - [ ] `make lint` and `make test` pass
 
 ---
