@@ -33,6 +33,12 @@
 | 6 | `TestPAT_IsExpired_ReturnsFalseWhenFutureExpiry` | unit | PAT with `ExpiresAt` in the future returns `false` |
 | 7 | `TestPAT_IsExpired_ReturnsFalseWhenNeverExpires` | unit | PAT with `ExpiresAt == nil` returns `false` |
 
+**File:** `api/internal/domain/ckerrors/auth_test.go`
+
+| # | Test name | Type | Description |
+|---|-----------|------|-------------|
+| 8 | `TestEmailAlreadyRegisteredError` | unit | `Error()` names the provider, or not when withheld; a wrapped error matches `ErrEmailAlreadyRegistered` with `errors.Is` and keeps the provider with `errors.As` (#132) |
+
 ---
 
 ## T-02 — Database schema
