@@ -20,15 +20,15 @@ type UserInfo struct {
 // The user must visit VerificationURI and enter UserCode to grant access.
 type DeviceAuthResponse struct {
 	// DeviceCode is an opaque code used to poll for the token.
-	DeviceCode string
+	DeviceCode string `json:"device_code"`
 	// UserCode is the short code shown to the end user.
-	UserCode string
+	UserCode string `json:"user_code"`
 	// VerificationURI is the URL the user must visit.
-	VerificationURI string
-	// ExpiresIn is the lifetime of the device code in seconds.
-	ExpiresIn int
-	// Interval is the polling interval in seconds.
-	Interval int
+	VerificationURI string `json:"verification_uri"`
+	// ExpiresIn is the remaining lifetime of the device code in seconds.
+	ExpiresIn int `json:"expires_in"`
+	// Interval is the minimum polling interval in seconds.
+	Interval int `json:"interval"`
 }
 
 // Provider defines the OAuth2 operations required by the AuthService.
@@ -45,9 +45,12 @@ type Provider interface {
 	// Returns the device auth response containing the user_code and verification_uri.
 	DeviceAuth(ctx context.Context) (*DeviceAuthResponse, error)
 
-	// DevicePoll polls the provider's token endpoint using the device code.
-	// Returns ErrAuthorizationPending when the user has not yet granted access.
-	// Returns UserInfo once the user has approved the request.
+	// DevicePoll makes a single request to the provider's token endpoint using the
+	// device code, and returns UserInfo once the user has approved the request.
+	// Otherwise it returns, wrapped:
+	//   - ErrAuthorizationPending: the user has not acted yet; poll again.
+	//   - ErrSlowDown: polled too fast; add 5 s to the interval and poll again.
+	//   - ErrAccessDenied, ErrDeviceCodeExpired, ErrInvalidDeviceCode: terminal.
 	DevicePoll(ctx context.Context, deviceCode string) (*UserInfo, error)
 }
 

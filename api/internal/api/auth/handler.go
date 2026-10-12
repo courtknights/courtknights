@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -104,8 +105,11 @@ func (h *Handler) deviceToken(c echo.Context) error {
 
 	token, err := h.manager.DevicePoll(c.Request().Context(), provider, req.DeviceCode)
 	if err != nil {
-		if isAuthorizationPending(err) {
-			return c.JSON(http.StatusAccepted, map[string]string{"error": "authorization_pending"})
+		if status, code, ok := deviceTokenStatus(err); ok {
+			return c.JSON(status, map[string]string{"error": code})
+		}
+		if errors.Is(err, appauth.ErrProviderNotConfigured) {
+			return providerError(err)
 		}
 		return echo.NewHTTPError(http.StatusUnauthorized, "authentication failed")
 	}
