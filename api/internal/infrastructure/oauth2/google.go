@@ -124,6 +124,7 @@ func (g *GoogleProvider) DevicePoll(ctx context.Context, deviceCode string) (*Us
 }
 
 // fetchUserInfo retrieves the authenticated user's profile from Google's userinfo endpoint.
+// It returns ErrEmailNotVerified unless Google reports a verified email.
 func (g *GoogleProvider) fetchUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.userInfoURL, nil)
 	if err != nil {
@@ -147,12 +148,16 @@ func (g *GoogleProvider) fetchUserInfo(ctx context.Context, accessToken string) 
 	}
 
 	var info struct {
-		Sub   string `json:"sub"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
 	}
 	if err := json.Unmarshal(body, &info); err != nil {
 		return nil, fmt.Errorf("google: parse userinfo: %w", err)
+	}
+	if info.Email == "" || !info.EmailVerified {
+		return nil, fmt.Errorf("google: %w", ErrEmailNotVerified)
 	}
 
 	return &UserInfo{

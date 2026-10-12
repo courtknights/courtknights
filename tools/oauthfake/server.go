@@ -42,6 +42,7 @@ func newServer(st *store, baseURL string) *server {
 	s.mux.HandleFunc("POST /{provider}/device/deny", s.withProvider(s.deviceResolveAPI(false)))
 	s.mux.HandleFunc("GET /google/userinfo", s.googleUserInfo)
 	s.mux.HandleFunc("GET /github/user", s.githubUser)
+	s.mux.HandleFunc("GET /github/user/emails", s.githubUserEmails)
 	return s
 }
 
@@ -78,6 +79,7 @@ func (s *server) authorizeForm(w http.ResponseWriter, r *http.Request, provider 
 	}
 	if login := q.Get("fake_user"); login != "" {
 		id, _ := newIdentity(login, q.Get("fake_email"), q.Get("fake_name"))
+		id = id.withEmailVerified(q.Get("fake_email_verified"))
 		s.redirectWithCode(w, r, provider, redirectURI, q.Get("state"), id)
 		return
 	}
@@ -116,6 +118,7 @@ func (s *server) authorizeSubmit(w http.ResponseWriter, r *http.Request, provide
 		http.Error(w, "login is required", http.StatusBadRequest)
 		return
 	}
+	id.EmailVerified = r.PostForm.Get("email_unverified") == ""
 	s.redirectWithCode(w, r, provider, redirectURI, state, id)
 }
 
@@ -224,6 +227,11 @@ func (s *server) resolveDevice(provider string, form url.Values, approve bool) (
 		if !ok {
 			return http.StatusBadRequest, "login is required to approve"
 		}
+		// The device page sends a checkbox; the test API sends email_verified=false.
+		id = id.withEmailVerified(form.Get("email_verified"))
+		if form.Get("email_unverified") != "" {
+			id.EmailVerified = false
+		}
 	}
 	err := s.store.resolveDevice(provider, form.Get("user_code"), approve, id)
 	switch {
@@ -249,12 +257,14 @@ func (s *server) googleUserInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sub":            id.googleSub(),
 		"email":          id.Email,
-		"email_verified": true,
+		"email_verified": id.EmailVerified,
 		"name":           id.Name,
 	})
 }
 
 // githubUser mirrors GitHub's GET /user response (the fields CourtKnights reads).
+// email is always null, as for a user whose email is private (the GitHub
+// default): clients must read GET /user/emails instead.
 func (s *server) githubUser(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.bearerIdentity(w, r, providerGitHub)
 	if !ok {
@@ -264,8 +274,22 @@ func (s *server) githubUser(w http.ResponseWriter, r *http.Request) {
 		"id":    id.githubID(),
 		"login": id.Login,
 		"name":  id.Name,
-		"email": id.Email,
+		"email": nil,
 	})
+}
+
+// githubUserEmails mirrors GitHub's GET /user/emails response.
+func (s *server) githubUserEmails(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.bearerIdentity(w, r, providerGitHub)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, []map[string]any{{
+		"email":      id.Email,
+		"primary":    true,
+		"verified":   id.EmailVerified,
+		"visibility": "private",
+	}})
 }
 
 func (s *server) bearerIdentity(w http.ResponseWriter, r *http.Request, provider string) (Identity, bool) {

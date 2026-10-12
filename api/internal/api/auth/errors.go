@@ -41,3 +41,13 @@ func deviceTokenStatus(err error) (status int, code string, ok bool) {
 		return 0, "", false
 	}
 }
+
+// callbackErrorCode maps login errors the user can act on to the error code sent
+// to the client: as a redirect query parameter in the browser flow, or as a JSON
+// body in the device flow. ok is false for all other errors.
+func callbackErrorCode(err error) (code string, ok bool) {
+	if errors.Is(err, oauth2infra.ErrEmailNotVerified) {
+		return "email_not_verified", true
+	}
+	return "", false
+}

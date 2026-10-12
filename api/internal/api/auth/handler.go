@@ -56,6 +56,10 @@ func (h *Handler) oauthCallback(c echo.Context) error {
 
 	token, err := h.manager.OAuthCallback(c.Request().Context(), provider, code)
 	if err != nil {
+		// Errors the user can act on are sent back to the frontend, like the token.
+		if errCode, ok := callbackErrorCode(err); ok {
+			return c.Redirect(http.StatusFound, "/?error="+errCode)
+		}
 		return echo.NewHTTPError(http.StatusUnauthorized, "authentication failed")
 	}
 
@@ -107,6 +111,9 @@ func (h *Handler) deviceToken(c echo.Context) error {
 	if err != nil {
 		if status, code, ok := deviceTokenStatus(err); ok {
 			return c.JSON(status, map[string]string{"error": code})
+		}
+		if errCode, ok := callbackErrorCode(err); ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": errCode})
 		}
 		if errors.Is(err, appauth.ErrProviderNotConfigured) {
 			return providerError(err)

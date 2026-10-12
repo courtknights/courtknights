@@ -226,6 +226,18 @@ func TestMain(m *testing.M) {
 | 4 | `TestDevicePoll_Approved_SendsDeviceGrantAndMapsUserInfo` | unit | Sends the device-code grant with client credentials; maps userinfo for both providers |
 | 5 | `TestDeviceAuth_ExpiresInIsSeconds` | unit | Regression: `ExpiresIn` is the lifetime in seconds (900), not a Unix timestamp |
 
+### Verified provider emails — added by #131
+
+| # | Test name | File | Type | Description |
+|---|-----------|------|------|-------------|
+| 1 | `TestGoogleProvider_Exchange_RejectsUnverifiedOrMissingEmail` | `oauth2/oauth2_test.go` | unit | `email_verified` false or missing, or no email → `ErrEmailNotVerified` |
+| 2 | `TestGitHubProvider_Exchange_UsesPrimaryVerifiedEmail` | `oauth2/oauth2_test.go` | unit | Email comes from `/user/emails` (primary + verified); the `/user` public email is ignored |
+| 3 | `TestGitHubProvider_Exchange_RejectsWhenNoPrimaryVerifiedEmail` | `oauth2/oauth2_test.go` | unit | Primary unverified, or no emails → `ErrEmailNotVerified` |
+| 4 | `TestGitHubProvider_Exchange_EmailsEndpointFailureIsNotUnverified` | `oauth2/oauth2_test.go` | unit | A failing `/user/emails` call is an error, not `ErrEmailNotVerified` |
+| 5 | `TestGitHubProvider_EmailsURLDerivedFromUserURL` | `oauth2/oauth2_test.go` | unit | `/user/emails` URL is derived from the (overridable) user URL |
+| 6 | `TestOAuthCallback_EmailNotVerified_RedirectsWithError` | `api/auth/handler_test.go` | unit | `302 → /?error=email_not_verified` |
+| 7 | `TestDeviceToken_EmailNotVerified_Returns400` | `api/auth/handler_test.go` | unit | `400 {"error":"email_not_verified"}` |
+
 ---
 
 ## T-11 — PAT exchange and JWT refresh handlers

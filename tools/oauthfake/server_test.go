@@ -202,9 +202,69 @@ func TestRedirectFlow_InteractiveForm(t *testing.T) {
 	q := redirectQuery(t)(noRedirect.PostForm(ts.URL+"/github/authorize", form))
 	_, tok := exchangeCode(t, ts, providerGitHub, q.Get("code"))
 	_, user := userInfo(t, ts, "/github/user", tok["access_token"].(string))
-	if user["email"] != "carol@club.test" || user["name"] != "Carol C" {
-		t.Errorf("user: got %v", user)
+	if user["name"] != "Carol C" || user["email"] != nil {
+		t.Errorf("user: got %v (email must be null, as for a private email)", user)
 	}
+	emails := githubEmails(t, ts, tok["access_token"].(string))
+	if len(emails) != 1 || emails[0]["email"] != "carol@club.test" || emails[0]["primary"] != true || emails[0]["verified"] != true {
+		t.Errorf("emails: got %v", emails)
+	}
+}
+
+func githubEmails(t *testing.T, ts *httptest.Server, token string) []map[string]any {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/github/user/emails", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /github/user/emails: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /github/user/emails: status %d", resp.StatusCode)
+	}
+	var out []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode emails: %v", err)
+	}
+	return out
+}
+
+// #131: every way of approving can simulate an unverified email.
+func TestUnverifiedEmail(t *testing.T) {
+	ts, clock := newTestServer(t)
+
+	t.Run("scripted Google login", func(t *testing.T) {
+		q := redirectQuery(t)(noRedirectGet(authorizeURL(ts, providerGoogle, url.Values{"fake_user": {"u1"}, "fake_email_verified": {"false"}})))
+		_, tok := exchangeCode(t, ts, providerGoogle, q.Get("code"))
+		_, info := userInfo(t, ts, "/google/userinfo", tok["access_token"].(string))
+		if info["email_verified"] != false {
+			t.Errorf("email_verified: got %v", info["email_verified"])
+		}
+	})
+	t.Run("interactive GitHub form", func(t *testing.T) {
+		form := url.Values{"redirect_uri": {redirectURI}, "login": {"u2"}, "email_unverified": {"1"}, "action": {"approve"}}
+		q := redirectQuery(t)(noRedirect.PostForm(ts.URL+"/github/authorize", form))
+		_, tok := exchangeCode(t, ts, providerGitHub, q.Get("code"))
+		if emails := githubEmails(t, ts, tok["access_token"].(string)); emails[0]["verified"] != false {
+			t.Errorf("verified: got %v", emails[0]["verified"])
+		}
+	})
+	t.Run("device approve API", func(t *testing.T) {
+		d := startDevice(t, ts, providerGoogle)
+		postForm(t, ts.URL+"/google/device/approve", url.Values{"user_code": {d["user_code"].(string)}, "login": {"u3"}, "email_verified": {"false"}})
+		clock.Advance(2 * time.Second)
+		_, tok := pollDevice(t, ts, providerGoogle, d["device_code"])
+		if _, info := userInfo(t, ts, "/google/userinfo", tok["access_token"].(string)); info["email_verified"] != false {
+			t.Errorf("email_verified: got %v", info["email_verified"])
+		}
+	})
+	t.Run("verified by default", func(t *testing.T) {
+		_, info := userInfo(t, ts, "/google/userinfo", loginScripted(t, ts, providerGoogle, "u4"))
+		if info["email_verified"] != true {
+			t.Errorf("email_verified: got %v", info["email_verified"])
+		}
+	})
 }
 
 func TestRedirectFlow_Deny_ReturnsAccessDenied(t *testing.T) {

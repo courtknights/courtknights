@@ -23,6 +23,7 @@ var authorizeTmpl = template.Must(template.New("authorize").Parse(`<!doctype htm
 <label for="login">Login</label><input id="login" name="login" required autofocus placeholder="alice">
 <label for="email">Email <span class="note">(default: login@example.com)</span></label><input id="email" name="email" type="email">
 <label for="name">Name <span class="note">(default: login)</span></label><input id="name" name="name">
+<label><input type="checkbox" name="email_unverified" value="1" style="width:auto"> Simulate an unverified email</label>
 <div class="actions"><button name="action" value="approve">Sign in</button><button name="action" value="deny" formnovalidate>Deny</button></div>
 </form>
 <p class="note">Requested scope: <code>{{.Scope}}</code></p>
@@ -38,6 +39,7 @@ var deviceTmpl = template.Must(template.New("device").Parse(`<!doctype html>
 <label for="login">Login</label><input id="login" name="login" placeholder="alice">
 <label for="email">Email <span class="note">(default: login@example.com)</span></label><input id="email" name="email" type="email">
 <label for="name">Name <span class="note">(default: login)</span></label><input id="name" name="name">
+<label><input type="checkbox" name="email_unverified" value="1" style="width:auto"> Simulate an unverified email</label>
 <div class="actions"><button name="action" value="approve">Approve</button><button name="action" value="deny">Deny</button></div>
 </form>
 </body></html>`))
