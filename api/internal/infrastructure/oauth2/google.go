@@ -110,25 +110,17 @@ func (g *GoogleProvider) DeviceAuth(ctx context.Context) (*DeviceAuthResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("google: device auth: %w", err)
 	}
-	return &DeviceAuthResponse{
-		DeviceCode:      resp.DeviceCode,
-		UserCode:        resp.UserCode,
-		VerificationURI: resp.VerificationURI,
-		ExpiresIn:       int(resp.Expiry.Unix()),
-		Interval:        int(resp.Interval),
-	}, nil
+	return toDeviceAuthResponse(resp), nil
 }
 
-// DevicePoll implements Provider.
-// Returns ErrAuthorizationPending while the user has not yet approved the request.
+// DevicePoll implements Provider. It makes a single token request and returns
+// immediately; see Provider.DevicePoll for the errors it can return.
 func (g *GoogleProvider) DevicePoll(ctx context.Context, deviceCode string) (*UserInfo, error) {
-	ctx = g.ctxWithClient(ctx)
-	deviceResp := &oauth2.DeviceAuthResponse{DeviceCode: deviceCode}
-	token, err := g.cfg.DeviceAccessToken(ctx, deviceResp)
+	accessToken, err := pollDeviceToken(ctx, g.httpClient, g.cfg, deviceCode)
 	if err != nil {
-		return nil, fmt.Errorf("google: device poll: %w: %w", ErrAuthorizationPending, err)
+		return nil, fmt.Errorf("google: device poll: %w", err)
 	}
-	return g.fetchUserInfo(ctx, token.AccessToken)
+	return g.fetchUserInfo(ctx, accessToken)
 }
 
 // fetchUserInfo retrieves the authenticated user's profile from Google's userinfo endpoint.

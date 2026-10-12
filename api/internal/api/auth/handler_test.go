@@ -279,6 +279,88 @@ func TestDeviceToken_Authorised_Returns200WithJWT(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "device-jwt")
 }
 
+// Device-flow poll outcomes map to RFC 8628 error codes (#128).
+func TestDeviceToken_ProtocolErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"slow_down", oauth2infra.ErrSlowDown, http.StatusAccepted, "slow_down"},
+		{"access_denied", oauth2infra.ErrAccessDenied, http.StatusBadRequest, "access_denied"},
+		{"expired_token", oauth2infra.ErrDeviceCodeExpired, http.StatusBadRequest, "expired_token"},
+		{"invalid device code", oauth2infra.ErrInvalidDeviceCode, http.StatusBadRequest, "invalid_grant"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := &mockAuthManager{}
+			mgr.On("DevicePoll", mock.Anything, user.ProviderGoogle, "dev-code").
+				Return("", fmt.Errorf("auth manager: DevicePoll: oauth manager: device poll: google: device poll: %w", tc.err))
+
+			h, e := newTestHandler(mgr)
+			req := httptest.NewRequest(http.MethodPost, "/auth/device/token",
+				strings.NewReader(`{"provider":"google","device_code":"dev-code"}`))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+
+			require.NoError(t, h.deviceToken(e.NewContext(req, rec)))
+			assert.Equal(t, tc.wantStatus, rec.Code)
+			assert.JSONEq(t, `{"error":"`+tc.wantCode+`"}`, rec.Body.String())
+		})
+	}
+}
+
+func TestDeviceToken_ProviderNotConfigured_Returns501(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DevicePoll", mock.Anything, user.ProviderGitHub, "dev-code").
+		Return("", fmt.Errorf("oauth manager: %w", appauth.ErrProviderNotConfigured))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token",
+		strings.NewReader(`{"provider":"github","device_code":"dev-code"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+	err := h.deviceToken(e.NewContext(req, httptest.NewRecorder()))
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusNotImplemented, he.Code)
+}
+
+func TestDeviceToken_OtherError_Returns401(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DevicePoll", mock.Anything, user.ProviderGitHub, "dev-code").
+		Return("", errors.New("github: userinfo: unexpected status 500"))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token",
+		strings.NewReader(`{"provider":"github","device_code":"dev-code"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+	err := h.deviceToken(e.NewContext(req, httptest.NewRecorder()))
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusUnauthorized, he.Code)
+}
+
+func TestDeviceAuth_ResponseUsesSnakeCaseFields(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DeviceInit", mock.Anything, user.ProviderGoogle).
+		Return(&oauth2infra.DeviceAuthResponse{
+			DeviceCode: "dev-code", UserCode: "ABCD-1234",
+			VerificationURI: "https://www.google.com/device", ExpiresIn: 1800, Interval: 5,
+		}, nil)
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/device", strings.NewReader(`{"provider":"google"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	require.NoError(t, h.deviceAuth(e.NewContext(req, rec)))
+	assert.JSONEq(t, `{"device_code":"dev-code","user_code":"ABCD-1234",
+		"verification_uri":"https://www.google.com/device","expires_in":1800,"interval":5}`, rec.Body.String())
+}
+
 func TestDeviceToken_MissingFields_Returns400(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
 	req := httptest.NewRequest(http.MethodPost, "/auth/device/token", strings.NewReader(`{"provider":"github"}`))

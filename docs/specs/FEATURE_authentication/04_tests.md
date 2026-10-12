@@ -209,6 +209,22 @@ func TestMain(m *testing.M) {
 | 4 | `TestAuthHandler_PostDeviceToken_Returns200WithJWTWhenAuthorised` | unit | `POST /auth/device/token {"device_code":"x"}` → `200`; body contains `token` |
 | 5 | `TestAuthHandler_PostDeviceToken_Returns202WhenPending` | unit | `DevicePoll` returns `authorization_pending` → `202`; body contains `error: authorization_pending` |
 | 6 | `TestAuthHandler_PostDeviceToken_Returns400ForMissingDeviceCode` | unit | `POST /auth/device/token {}` → `400 Bad Request` |
+| 7 | `TestDeviceToken_ProtocolErrors` | unit | `slow_down` → `202`; `access_denied`, `expired_token`, invalid device code → `400` with the RFC 8628 code (#128) |
+| 8 | `TestDeviceToken_ProviderNotConfigured_Returns501` | unit | `ErrProviderNotConfigured` → `501` |
+| 9 | `TestDeviceToken_OtherError_Returns401` | unit | Any other error → `401` |
+| 10 | `TestDeviceAuth_ResponseUsesSnakeCaseFields` | unit | `POST /auth/device` body uses `device_code`, `user_code`, `verification_uri`, `expires_in`, `interval` |
+
+### Device-flow polling (provider adapters) — added by #128
+
+**File:** `api/internal/infrastructure/oauth2/device_test.go`
+
+| # | Test name | Type | Description |
+|---|-----------|------|-------------|
+| 1 | `TestDevicePoll_MapsRFC8628Responses` | unit | For Google and GitHub: each token-endpoint response (JSON or form-encoded, any status) maps to exactly one sentinel error; one token request per call |
+| 2 | `TestDevicePoll_UnknownOrMalformedResponse_IsNotAProtocolError` | unit | Unknown error codes, empty or non-JSON bodies return an error that matches no device-flow sentinel |
+| 3 | `TestDevicePoll_PendingReturnsImmediately` | unit | Regression: a pending poll returns in under 1 s after a single request |
+| 4 | `TestDevicePoll_Approved_SendsDeviceGrantAndMapsUserInfo` | unit | Sends the device-code grant with client credentials; maps userinfo for both providers |
+| 5 | `TestDeviceAuth_ExpiresInIsSeconds` | unit | Regression: `ExpiresIn` is the lifetime in seconds (900), not a Unix timestamp |
 
 ---
 

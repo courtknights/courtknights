@@ -162,18 +162,28 @@ All request and response bodies are JSON. Authenticated endpoints require `Autho
 }
 ```
 
+`expires_in` is the remaining lifetime of the device code in seconds, and
+`interval` is the minimum number of seconds between polls.
+
 **`POST /auth/device/token` request:**
 ```json
-{ "device_code": "…" }
+{ "provider": "google", "device_code": "…" }
 ```
-**`POST /auth/device/token` response (success):**
-```json
-{ "token": "<jwt>", "expires_in": 3600 }
-```
-**`POST /auth/device/token` response (pending):**
-```json
-{ "error": "authorization_pending" }
-```
+
+Each call makes **one** request to the provider and returns immediately. The
+client polls every `interval` seconds until it gets a final response (#128).
+Error codes follow RFC 8628 §3.5:
+
+| Outcome | Status | Body | Client action |
+|---------|--------|------|---------------|
+| Approved | `200` | `{ "token": "<jwt>" }` | Done |
+| User has not acted yet | `202` | `{ "error": "authorization_pending" }` | Poll again after `interval` |
+| Polling too fast | `202` | `{ "error": "slow_down" }` | Add 5 s to `interval`, then poll again |
+| User denied | `400` | `{ "error": "access_denied" }` | Stop; restart the flow |
+| Device code expired | `400` | `{ "error": "expired_token" }` | Stop; restart the flow |
+| Unknown device code | `400` | `{ "error": "invalid_grant" }` | Stop; restart the flow |
+| Provider not configured | `501` | — | Stop |
+| Any other failure | `401` | — | Stop |
 
 #### PAT exchange
 
