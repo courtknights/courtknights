@@ -139,13 +139,14 @@ type preferencesRequest struct {
 }
 
 // toPatch converts the JSON request into a domain ProfilePatch.
+// A nil member leaves the field unchanged; a non-nil member sets it.
 // Returns an error if any enum value is unrecognised.
 func (r *profilePatchRequest) toPatch() (profile.ProfilePatch, error) {
 	patch := profile.ProfilePatch{
 		DisplayName: r.DisplayName,
-		City:        r.City,
-		Region:      r.Region,
-		Country:     r.Country,
+		City:        setIfPresent(r.City),
+		Region:      setIfPresent(r.Region),
+		Country:     setIfPresent(r.Country),
 	}
 
 	if r.Gender != nil {
@@ -153,7 +154,7 @@ func (r *profilePatchRequest) toPatch() (profile.ProfilePatch, error) {
 		if g != profile.GenderMale && g != profile.GenderFemale {
 			return profile.ProfilePatch{}, fmt.Errorf("invalid gender value: %q", *r.Gender)
 		}
-		patch.Gender = &g
+		patch.Gender = profile.SetTo(g)
 	}
 
 	if r.DateOfBirth != nil {
@@ -161,7 +162,7 @@ func (r *profilePatchRequest) toPatch() (profile.ProfilePatch, error) {
 		if err != nil {
 			return profile.ProfilePatch{}, fmt.Errorf("invalid date_of_birth: must be YYYY-MM-DD")
 		}
-		patch.DateOfBirth = &t
+		patch.DateOfBirth = profile.SetTo(t)
 	}
 
 	if r.Category != nil {
@@ -172,40 +173,51 @@ func (r *profilePatchRequest) toPatch() (profile.ProfilePatch, error) {
 		default:
 			return profile.ProfilePatch{}, fmt.Errorf("invalid category value: %q", *r.Category)
 		}
-		patch.Category = &cat
+		patch.Category = profile.SetTo(cat)
 	}
 
 	if r.Preferences != nil {
-		prefs, err := toPreferences(r.Preferences)
+		prefs, err := toPreferencesPatch(r.Preferences)
 		if err != nil {
 			return profile.ProfilePatch{}, err
 		}
-		patch.Preferences = &prefs
+		patch.Preferences = prefs
 	}
 
 	return patch, nil
 }
 
-// toPreferences converts a preferencesRequest into a domain Preferences value.
-func toPreferences(r *preferencesRequest) (profile.Preferences, error) {
-	var prefs profile.Preferences
+// setIfPresent returns a Field that sets v when it is non-nil, and leaves the
+// stored value unchanged otherwise.
+func setIfPresent(v *string) profile.Field[string] {
+	if v == nil {
+		return profile.Unchanged[string]()
+	}
+	return profile.SetTo(*v)
+}
+
+// toPreferencesPatch converts a preferencesRequest into a PreferencesPatch.
+// Each member that is present is set; the others are left unchanged, so the
+// stored preferences are merged rather than replaced.
+func toPreferencesPatch(r *preferencesRequest) (profile.PreferencesPatch, error) {
+	var prefs profile.PreferencesPatch
 
 	if r.CourtSide != nil {
 		cs := profile.CourtSide(*r.CourtSide)
 		switch cs {
 		case profile.CourtSideDrive, profile.CourtSideBackhand, profile.CourtSideBoth:
 		default:
-			return profile.Preferences{}, fmt.Errorf("invalid court_side value: %q", *r.CourtSide)
+			return profile.PreferencesPatch{}, fmt.Errorf("invalid court_side value: %q", *r.CourtSide)
 		}
-		prefs.CourtSide = &cs
+		prefs.CourtSide = profile.SetTo(cs)
 	}
 
 	if r.Handedness != nil {
 		h := profile.Handedness(*r.Handedness)
 		if h != profile.HandednessRight && h != profile.HandednessLeft {
-			return profile.Preferences{}, fmt.Errorf("invalid handedness value: %q", *r.Handedness)
+			return profile.PreferencesPatch{}, fmt.Errorf("invalid handedness value: %q", *r.Handedness)
 		}
-		prefs.Handedness = &h
+		prefs.Handedness = profile.SetTo(h)
 	}
 
 	return prefs, nil

@@ -325,8 +325,7 @@ func TestUpdateMyProfile_EmptyBody_Returns200(t *testing.T) {
 	p := buildTestProfile(userID)
 	mgr := &mockProfileManager{}
 	mgr.On("Update", mock.Anything, userID, mock.MatchedBy(func(patch profile.ProfilePatch) bool {
-		return patch.DisplayName == nil && patch.Country == nil && patch.Region == nil &&
-			patch.Gender == nil && patch.Category == nil
+		return patch.IsEmpty()
 	})).Return(p, nil)
 
 	h, e := newTestHandler(mgr)
