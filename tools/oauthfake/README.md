@@ -15,20 +15,25 @@ Every provider is served under its own prefix: `/google/...` and `/github/...`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/{provider}/authorize` | Sign-in form. With `fake_user=<login>` (optional `fake_email`, `fake_name`), it approves immediately. |
+| `GET` | `/{provider}/authorize` | Sign-in form. With `fake_user=<login>` (optional `fake_email`, `fake_name`, `fake_email_verified=false`), it approves immediately. |
 | `POST` | `/{provider}/authorize` | Form submission → `redirect_uri?code=…&state=…` (or `error=access_denied`) |
 | `POST` | `/{provider}/token` | `authorization_code` and device-code grants, with RFC 8628 errors |
 | `POST` | `/{provider}/device/code` | Starts a device authorization request |
 | `GET`/`POST` | `/{provider}/device` | Page to enter a user code and approve or deny it |
-| `POST` | `/{provider}/device/approve` | Test API: `user_code`, `login` (optional `email`, `name`) → `204` |
+| `POST` | `/{provider}/device/approve` | Test API: `user_code`, `login` (optional `email`, `name`, `email_verified=false`) → `204` |
 | `POST` | `/{provider}/device/deny` | Test API: `user_code` → `204` |
 | `GET` | `/google/userinfo` | Google OIDC shape: `sub`, `email`, `email_verified`, `name` |
-| `GET` | `/github/user` | GitHub `/user` shape: numeric `id`, `login`, `name`, `email` |
+| `GET` | `/github/user` | GitHub `/user` shape: numeric `id`, `login`, `name`; `email` is always `null` (private email) |
+| `GET` | `/github/user/emails` | GitHub `/user/emails` shape: one entry, `primary: true`, `verified` per identity |
 | `GET` | `/healthz` | `204` |
 
 Identities are stable. The same `login` always yields the Google `sub`
 `fake-google-<login>` and the same numeric GitHub `id`. Email and name default
 to `<login>@example.com` and `<login>`.
+
+Emails are **verified by default**. To test the `email_not_verified` path, use
+`fake_email_verified=false` (scripted login), `email_verified=false` (device
+approve API), or the "Simulate an unverified email" checkbox on the forms.
 
 Device responses mirror each provider: Google returns `verification_url`, and
 GitHub returns `verification_uri`. Polling faster than `interval` returns

@@ -58,7 +58,8 @@ One fake serves both providers under path prefixes, `/google/...` and
 | `GET`/`POST /device` | Page to enter a user code and approve or deny it |
 | `POST /device/approve`, `POST /device/deny` | Test API: approve or deny a pending user code non-interactively |
 | `GET /google/userinfo` | Google OIDC userinfo shape: `sub`, `email`, `name` |
-| `GET /github/user` | GitHub `/user` shape: numeric `id`, `login`, `name`, `email` |
+| `GET /github/user` | GitHub `/user` shape: numeric `id`, `login`, `name` (`email` is `null`, as for a private email) |
+| `GET /github/user/emails` | GitHub `/user/emails` shape: primary address with its `verified` flag (added by #131) |
 
 - **Stable identities:** the same `login` always yields the same Google `sub`
   and the same numeric GitHub `id`. Distinct logins never collide, so several

@@ -30,10 +30,13 @@ func deviceTestServer(t *testing.T, respond func(w http.ResponseWriter)) (*httpt
 		respond(w)
 	})
 	mux.HandleFunc("GET /userinfo", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"sub": "g-1", "email": "a@example.com", "name": "A"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"sub": "g-1", "email": "a@example.com", "email_verified": true, "name": "A"})
 	})
 	mux.HandleFunc("GET /user", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": 42, "login": "a", "name": "A", "email": "a@example.com"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 42, "login": "a", "name": "A", "email": nil})
+	})
+	mux.HandleFunc("GET /user/emails", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{{"email": "a@example.com", "primary": true, "verified": true}})
 	})
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)

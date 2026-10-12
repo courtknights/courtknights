@@ -3,7 +3,10 @@
 // (web) flow and the Device Authorization Grant (RFC 8628, CLI) flow.
 package oauth2
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // UserInfo holds the normalised user data returned by an OAuth2 provider
 // after a successful token exchange.
@@ -53,6 +56,11 @@ type Provider interface {
 	//   - ErrAccessDenied, ErrDeviceCodeExpired, ErrInvalidDeviceCode: terminal.
 	DevicePoll(ctx context.Context, deviceCode string) (*UserInfo, error)
 }
+
+// ErrEmailNotVerified is returned by Exchange and DevicePoll when the provider
+// does not supply an email address it has verified. CourtKnights only trusts
+// provider-verified emails (#131).
+var ErrEmailNotVerified = errors.New("email not verified by provider")
 
 // ErrAuthorizationPending is returned by DevicePoll when the device code is
 // valid but the user has not yet completed the authorisation.

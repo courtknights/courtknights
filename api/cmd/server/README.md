@@ -171,8 +171,8 @@ The server redirects to the fake's sign-in form. Enter any login (for example
 `alice`. The fake redirects back to the callback, and the server returns a JWT.
 
 **Scripted login (no form):** append `fake_user=<login>` (and optionally
-`fake_email`, `fake_name`) to the fake's authorize URL, and it approves
-immediately:
+`fake_email`, `fake_name`, or `fake_email_verified=false` to simulate an
+unverified email) to the fake's authorize URL, and it approves immediately:
 
 ```sh
 auth=$(curl -s -o /dev/null -w "%{redirect_url}" http://localhost:8080/auth/github)

@@ -191,6 +191,24 @@ func TestOAuthCallback_InvalidCode_Returns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, he.Code)
 }
 
+// #131: a login without a provider-verified email redirects with an error code.
+func TestOAuthCallback_EmailNotVerified_RedirectsWithError(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("OAuthCallback", mock.Anything, user.ProviderGitHub, "code").
+		Return("", fmt.Errorf("auth manager: OAuthCallback: github: %w", oauth2infra.ErrEmailNotVerified))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodGet, "/auth/github/callback?code=code", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("provider")
+	c.SetParamValues("github")
+
+	require.NoError(t, h.oauthCallback(c))
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.Equal(t, "/?error=email_not_verified", rec.Header().Get("Location"))
+}
+
 func TestOAuthCallback_MissingCode_Returns400(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback", nil)
@@ -309,6 +327,23 @@ func TestDeviceToken_ProtocolErrors(t *testing.T) {
 			assert.JSONEq(t, `{"error":"`+tc.wantCode+`"}`, rec.Body.String())
 		})
 	}
+}
+
+// #131: a device login without a provider-verified email is rejected with 400.
+func TestDeviceToken_EmailNotVerified_Returns400(t *testing.T) {
+	mgr := &mockAuthManager{}
+	mgr.On("DevicePoll", mock.Anything, user.ProviderGoogle, "dev-code").
+		Return("", fmt.Errorf("google: %w", oauth2infra.ErrEmailNotVerified))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/device/token",
+		strings.NewReader(`{"provider":"google","device_code":"dev-code"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	require.NoError(t, h.deviceToken(e.NewContext(req, rec)))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.JSONEq(t, `{"error":"email_not_verified"}`, rec.Body.String())
 }
 
 func TestDeviceToken_ProviderNotConfigured_Returns501(t *testing.T) {

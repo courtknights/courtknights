@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
@@ -130,37 +131,38 @@ func (g *GitHubProvider) DevicePoll(ctx context.Context, deviceCode string) (*Us
 }
 
 // fetchUserInfo retrieves the authenticated user's profile from the GitHub API.
+//
+// GET /user provides the stable numeric id, login and name. Its email field is
+// only the user's public profile email (null when private), so the email is
+// taken from GET /user/emails instead: the primary address, which must be
+// verified. Otherwise it returns ErrEmailNotVerified.
 func (g *GitHubProvider) fetchUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.userInfoURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("github: userinfo request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github: userinfo: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("github: read userinfo: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github: userinfo: unexpected status %d: %s", resp.StatusCode, body)
-	}
-
 	var info struct {
 		ID    int64  `json:"id"`
 		Login string `json:"login"`
 		Name  string `json:"name"`
-		Email string `json:"email"`
 	}
-	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, fmt.Errorf("github: parse userinfo: %w", err)
+	if err := g.getJSON(ctx, g.userInfoURL, accessToken, &info); err != nil {
+		return nil, fmt.Errorf("github: userinfo: %w", err)
+	}
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := g.getJSON(ctx, g.emailsURL(), accessToken, &emails); err != nil {
+		return nil, fmt.Errorf("github: emails: %w", err)
+	}
+	email := ""
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			email = e.Email
+			break
+		}
+	}
+	if email == "" {
+		return nil, fmt.Errorf("github: %w", ErrEmailNotVerified)
 	}
 
 	name := info.Name
@@ -170,7 +172,42 @@ func (g *GitHubProvider) fetchUserInfo(ctx context.Context, accessToken string) 
 
 	return &UserInfo{
 		ProviderID: fmt.Sprintf("%d", info.ID),
-		Email:      info.Email,
+		Email:      email,
 		Name:       name,
 	}, nil
+}
+
+// emailsURL is the user-emails endpoint: GET /user/emails on GitHub, derived
+// from the (possibly overridden) user endpoint so that local fakes work too.
+func (g *GitHubProvider) emailsURL() string {
+	return strings.TrimRight(g.userInfoURL, "/") + "/emails"
+}
+
+// getJSON performs an authenticated GET against the GitHub API and decodes the
+// JSON body into out. Non-200 responses are errors.
+func (g *GitHubProvider) getJSON(ctx context.Context, url, accessToken string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("parse: %w", err)
+	}
+	return nil
 }

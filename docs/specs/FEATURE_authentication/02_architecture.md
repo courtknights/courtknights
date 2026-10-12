@@ -140,6 +140,24 @@ All request and response bodies are JSON. Authenticated endpoints require `Autho
 302 → <frontend_url>/auth/callback?token=<jwt>
 ```
 
+**Callback error responses** (redirect, so the frontend can explain what to do):
+```
+302 → /?error=email_not_verified      # the provider has no verified email for the user (#131)
+```
+Any other callback failure returns `401 authentication failed`.
+
+**Provider identity and email (#131).** The user is identified by
+`(provider, provider_id)`. The email stored in `users.email` must be one the
+provider has **verified**:
+- **Google:** the userinfo `email`, accepted only when `email_verified` is `true`.
+- **GitHub:** `GET /user` supplies `id`, `login` and `name`, but its `email` is the
+  public profile email (`null` when private). The email is taken from
+  `GET /user/emails` (scope `user:email`): the entry with `primary` and
+  `verified` both `true`. The endpoint URL is the user endpoint plus `/emails`.
+
+If no verified email is available, the login is rejected with
+`ErrEmailNotVerified`.
+
 #### OAuth2 Device Authorization Grant
 
 | Method | Path                 | Description                                    |
@@ -182,6 +200,7 @@ Error codes follow RFC 8628 §3.5:
 | User denied | `400` | `{ "error": "access_denied" }` | Stop; restart the flow |
 | Device code expired | `400` | `{ "error": "expired_token" }` | Stop; restart the flow |
 | Unknown device code | `400` | `{ "error": "invalid_grant" }` | Stop; restart the flow |
+| Provider has no verified email (#131) | `400` | `{ "error": "email_not_verified" }` | Stop; the user must verify an email with the provider |
 | Provider not configured | `501` | — | Stop |
 | Any other failure | `401` | — | Stop |
 

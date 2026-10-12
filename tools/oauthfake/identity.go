@@ -13,6 +13,9 @@ type Identity struct {
 	Email string
 	// Name is the user's display name.
 	Name string
+	// EmailVerified reports whether the provider has verified Email.
+	// It defaults to true; tests set it to false to simulate unverified emails.
+	EmailVerified bool
 }
 
 // newIdentity builds an Identity, filling in defaults for empty email and name.
@@ -30,7 +33,14 @@ func newIdentity(login, email, name string) (Identity, bool) {
 	if name == "" {
 		name = login
 	}
-	return Identity{Login: login, Email: email, Name: name}, true
+	return Identity{Login: login, Email: email, Name: name, EmailVerified: true}, true
+}
+
+// withEmailVerified returns a copy of i with EmailVerified set from a request
+// parameter: only the literal "false" marks the email as unverified.
+func (i Identity) withEmailVerified(param string) Identity {
+	i.EmailVerified = param != "false"
+	return i
 }
 
 // googleSub returns a stable Google subject identifier for the identity.
