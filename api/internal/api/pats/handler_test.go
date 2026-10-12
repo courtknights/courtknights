@@ -3,6 +3,7 @@ package pats
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/courtknights/courtknights/internal/api/common"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	"github.com/courtknights/courtknights/internal/domain/pat"
 	"github.com/courtknights/courtknights/internal/domain/user"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
@@ -232,6 +234,27 @@ func TestRevokePAT_AsNonAdmin_Returns403(t *testing.T) {
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusForbidden, he.Code)
 	_ = rec
+}
+
+func TestRevokePAT_UnknownID_Returns404(t *testing.T) {
+	patID := uuid.New()
+	mgr := &mockAuthManager{}
+	mgr.On("RevokePAT", mock.Anything, patID).
+		Return(fmt.Errorf("user manager: RevokePAT: %w", ckerrors.ErrPATNotFound))
+
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pats/"+patID.String(), nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues(patID.String())
+	c.Set(common.ContextKeyRole, string(user.RoleAdmin))
+
+	err := h.revokePAT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusNotFound, he.Code)
+	mgr.AssertExpectations(t)
 }
 
 func TestRevokePAT_InvalidID_Returns400(t *testing.T) {

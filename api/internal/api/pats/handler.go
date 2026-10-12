@@ -2,6 +2,7 @@
 package pats
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/courtknights/courtknights/internal/api/common"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 )
 
 // Handler handles all PAT management HTTP requests.
@@ -98,6 +100,9 @@ func (h *Handler) revokePAT(c echo.Context) error {
 	}
 
 	if err := h.manager.RevokePAT(c.Request().Context(), id); err != nil {
+		if errors.Is(err, ckerrors.ErrPATNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "PAT not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to revoke PAT")
 	}
 

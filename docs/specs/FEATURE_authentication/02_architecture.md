@@ -273,7 +273,8 @@ A token stays valid until its `exp` even after a role change. The JWT expiry
 ]
 ```
 The list **never** includes `key_hash` or `salt` (#135). All three endpoints
-return `403` for non-admin users.
+return `403` for non-admin users. `DELETE /api/v1/pats/:id` returns `204` on
+success and `404` when no PAT has that ID.
 
 ### User management endpoints (protected)
 
