@@ -32,6 +32,9 @@
 
 ## AC-03 — Update own profile (partial)
 
+> **Superseded by FEATURE_clearable_profile_fields AC-01/AC-02 (#121):** the
+> request is now `PATCH` with JSON Merge Patch semantics.
+
 **Given** a signed-in user with an existing profile
 **When** they call `PUT /api/v1/users/me/profile` with a subset of fields
 **Then** the response is `200 OK` with the updated profile; only the submitted fields have changed; all other fields retain their previous values.
@@ -39,6 +42,9 @@
 ---
 
 ## AC-04 — Update own profile (full)
+
+> **Superseded by FEATURE_clearable_profile_fields AC-01 (#121):** the request
+> is now `PATCH`.
 
 **Given** a signed-in user
 **When** they call `PUT /api/v1/users/me/profile` with all fields populated and valid
@@ -57,6 +63,11 @@
 
 **And** when they submit a region code without a country code
 **Then** the response is `400 Bad Request`.
+
+> **Superseded (#121):** the request is now `PATCH`, and a region sent without
+> a country is validated against the **stored** country; it is rejected only
+> when the profile has no country or the region belongs to another country
+> (FEATURE_clearable_profile_fields AC-08).
 
 ---
 
@@ -110,7 +121,7 @@
 ## AC-11 — Unauthenticated access is rejected
 
 **Given** an unauthenticated request (no JWT or expired JWT)
-**When** any profile endpoint is called (`GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`, `GET /users`)
+**When** any profile endpoint is called (`GET /users/me/profile`, `PATCH /users/me/profile` — formerly `PUT`, #121 — `GET /users/:id/profile`, `GET /users`)
 **Then** the response is `401 Unauthorized`.
 
 ---

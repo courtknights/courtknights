@@ -75,6 +75,9 @@ The preferences schema is open: additional fields can be introduced in future fe
 
 **Acceptance criteria:**
 - `PUT /api/v1/users/me/profile` updates the authenticated user's profile.
+  *Superseded by FEATURE_clearable_profile_fields (#121): the endpoint is now
+  `PATCH /api/v1/users/me/profile` with JSON Merge Patch semantics (ADR-015),
+  so optional fields can also be cleared with `null`.*
 - Partial updates are supported — only the fields included in the request body are changed.
 - The updated profile is returned in the response.
 
