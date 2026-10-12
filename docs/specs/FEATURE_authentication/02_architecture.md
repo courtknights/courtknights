@@ -105,8 +105,8 @@ Two levels of route registration:
 | Method                                              | Description                                                            |
 | --------------------------------------------------- | ---------------------------------------------------------------------- |
 | `ResolveByOAuth(provider, providerID, email, name)` | Upsert user from OAuth2 callback; creates on first login               |
-| `ResolveByPAT(rawPAT)`                              | Hash-validates the raw PAT, resolves the linked User                   |
-| `CreatePAT(userID, expiresAt)`                      | Generates, hashes, and stores a new PAT; returns raw value once        |
+| `ResolveByPAT(rawPAT)`                              | Hash-validates the raw PAT, resolves the User by `pat.user_id`         |
+| `CreatePAT(userID, expiresAt)`                      | Checks the user exists, then stores a new PAT with `user_id`; returns raw value once; never modifies the user |
 | `RevokePAT(id)`                                     | Deletes a PAT record                                                   |
 | `BootstrapAdmin(email, name, rawPAT)`               | Creates the first admin user + PAT from env vars; no-op if users exist |
 
@@ -265,11 +265,15 @@ A token stays valid until its `exp` even after a role change. The JWT expiry
 ```json
 { "token": "<raw-value>" }
 ```
+The PAT is linked to the user through `personal_access_tokens.user_id`; the
+user's `provider` and `provider_id` are never modified, so an OAuth user keeps
+signing in with their provider (#136). An unknown `user_id` returns `404`, and
+no PAT is stored.
 
 **`GET /api/v1/pats` response** (`200`):
 ```json
 [
-  { "id": "<pat-uuid>", "created_at": "2026-10-12T09:00:00Z", "expires_at": null }
+  { "id": "<pat-uuid>", "user_id": "<user-uuid>", "created_at": "2026-10-12T09:00:00Z", "expires_at": null }
 ]
 ```
 The list **never** includes `key_hash` or `salt` (#135). All three endpoints
@@ -344,7 +348,7 @@ Client           Backend            Database
   │                 │  hash(pat, salt)  │
   │                 │  compare hashes   │
   │                 │── fetch User ────►│
-  │                 │   (provider_id = pat_id)
+  │                 │   (id = pat.user_id)
   │                 │◄── User ─────────│
   │                 │  issue JWT        │
   │◄── JWT ─────────│                   │
@@ -371,6 +375,7 @@ CREATE TABLE users (
 -- db/schema/personal_access_tokens.sql
 CREATE TABLE personal_access_tokens (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key_hash   VARCHAR(255) NOT NULL,
     salt       VARCHAR(255) NOT NULL,
     expires_at TIMESTAMPTZ,
@@ -381,7 +386,8 @@ CREATE TABLE personal_access_tokens (
 **Constraints:**
 - `(provider, provider_id)` is unique — one identity per provider per user
 - `expires_at` is nullable — a PAT with no expiry is valid indefinitely
-- No foreign key from `users.provider_id` to `personal_access_tokens.id` — the `provider` column acts as a discriminator; referential integrity is enforced at the application layer
+- Every PAT belongs to exactly one user (`user_id`, indexed); a user can own several PATs, and deleting a user deletes their PATs (#136)
+- For `provider = pat` users (the bootstrap admin), `provider_id` is an opaque unique identifier, not a PAT id
 
 ---
 
@@ -410,9 +416,8 @@ The middleware is registered on the router group for `/api/v1/*`. The `/auth/*` 
 
 If the environment variables `COURTKNIGHTS_BOOTSTRAP_PAT`, `COURTKNIGHTS_BOOTSTRAP_EMAIL`, and `COURTKNIGHTS_BOOTSTRAP_NAME` are set and no users exist in the database, the server creates:
 
-1. An `admin` User record (`provider = pat`, email and name from env vars)
-2. A PAT record derived from `COURTKNIGHTS_BOOTSTRAP_PAT` (hashed + salted)
-3. Sets `provider_id` on the User to the new PAT's `id`
+1. An `admin` User record (`provider = pat`, an opaque `provider_id`, email and name from env vars)
+2. A PAT record derived from `COURTKNIGHTS_BOOTSTRAP_PAT` (hashed + salted), with `user_id` set to the new user
 
 This runs once at startup and is a no-op on subsequent starts.
 

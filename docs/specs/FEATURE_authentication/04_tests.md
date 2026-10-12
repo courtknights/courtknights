@@ -46,6 +46,8 @@
 | 3 | `migration_002_up` | manual | `002_create_personal_access_tokens.up.sql` creates table; `id` is UUID PK |
 | 4 | `migration_002_down` | manual | `002_create_personal_access_tokens.down.sql` drops table cleanly |
 | 5 | `migration_full_roundtrip` | manual | Running all migrations up then all down leaves the DB in the original empty state |
+| 6 | `TestMigration004_BackfillsUserIDAndRemovesOrphans` | integration | Apply 001–003, insert old-model data (admin `provider_id` = PAT id, plus an orphan PAT), apply 004: the admin's PAT has `user_id` = admin, the orphan is deleted (#136) |
+| 7 | `migration_004_down` | manual | `004_link_personal_access_tokens_to_users.down.sql` drops `user_id` and its index; re-applying `up` succeeds (#136) |
 
 ---
 
@@ -85,6 +87,8 @@ func TestMain(m *testing.M) {
 | 10 | `TestPATRepository_FindAll_ReturnsAllPATs` | integration | Insert 3 PATs; `FindAll` returns all 3 |
 | 11 | `TestPATRepository_Delete_RemovesPAT` | integration | Save then Delete a PAT; `FindByID` returns `ckerrors.ErrPATNotFound` |
 | 12 | `TestPATRepository_Delete_UnknownIDReturnsError` | integration | `Delete` with unknown UUID returns error |
+| 13 | `TestPATRepository_Save_UnknownUser_Fails` | integration | `Save` with a `user_id` that does not exist fails on the foreign key (#136) |
+| 14 | `TestPATRepository_DeletingUser_CascadesToPATs` | integration | Deleting a user deletes their PATs (#136) |
 
 ---
 
@@ -137,7 +141,7 @@ func TestMain(m *testing.M) {
 |---|-----------|------|-------------|
 | 1 | `TestAuthManager_ResolveByOAuth_CreatesUserOnFirstLogin` | unit | `FindByProvider` returns `ErrUserNotFound`; `Upsert` is called; user is returned |
 | 2 | `TestAuthManager_ResolveByOAuth_ReturnsExistingUser` | unit | `FindByProvider` returns a user; `Upsert` is NOT called; same user is returned |
-| 3 | `TestAuthManager_ResolveByPAT_ReturnsUserForValidPAT` | unit | Hash matches; PAT not expired; `FindByProvider` returns linked user |
+| 3 | `TestAuthManager_ResolveByPAT_ReturnsUserForValidPAT` | unit | Hash matches; PAT not expired; `FindByID(pat.user_id)` returns the linked user (#136) |
 | 4 | `TestAuthManager_ResolveByPAT_ReturnsErrInvalidPATForWrongKey` | unit | No hash match across all PATs; returns `ckerrors.ErrInvalidPAT` |
 | 5 | `TestAuthManager_ResolveByPAT_ReturnsErrPATExpiredForExpiredPAT` | unit | Hash matches but PAT is expired; returns `ckerrors.ErrPATExpired` |
 | 6 | `TestAuthManager_CreatePAT_ReturnsRawKey` | unit | `Save` is called; returned raw key is non-empty; stored `key_hash` differs from raw key |
@@ -145,6 +149,8 @@ func TestMain(m *testing.M) {
 | 8 | `TestAuthManager_RevokePAT_CallsDelete` | unit | `Delete` is called with the correct PAT ID |
 | 9 | `TestAuthManager_BootstrapAdmin_CreatesAdminWhenNoUsersExist` | unit | `FindAll` returns empty; admin user + PAT are created via `Upsert` + `Save` |
 | 10 | `TestAuthManager_BootstrapAdmin_IsNoOpWhenUsersExist` | unit | `FindAll` returns one user; neither `Upsert` nor `Save` is called |
+| 11 | `TestManager_CreatePAT_LinksPATToUserWithoutTouchingIdentity` | unit | For Google, GitHub and PAT users: the saved PAT has `user_id` = the user; `Upsert` is never called; provider and `provider_id` are unchanged (#136) |
+| 12 | `TestManager_CreatePAT_UnknownUser_ReturnsErrUserNotFoundAndSavesNothing` | unit | `FindByID` returns `ErrUserNotFound`; the error is propagated and `Save` is not called (#136) |
 
 ---
 
@@ -266,9 +272,10 @@ func TestMain(m *testing.M) {
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
 | 1 | `TestPATHandler_PostPATs_Returns201WithRawPATAsAdmin` | unit | Admin JWT; `POST /api/v1/pats` → `201`; body is `{"token": "<raw-value>"}` (shown once) |
+| 1a | `TestCreatePAT_UnknownUser_Returns404` | unit | `CreatePAT` returns a wrapped `ErrUserNotFound` → `404 Not Found` (#136) |
 | 2 | `TestPATHandler_PostPATs_Returns403AsNonAdmin` | unit | Non-admin JWT; `POST /api/v1/pats` → `403 Forbidden` |
 | 3 | `TestPATHandler_PostPATs_Returns401WithNoJWT` | unit | No JWT → `401 Unauthorized` |
-| 4 | `TestListPATs_AsAdmin_Returns200WithoutSecrets` | unit | `GET /api/v1/pats` as admin → `200`; snake_case `id`, `created_at`, `expires_at`; no key hash or salt (#135) |
+| 4 | `TestListPATs_AsAdmin_Returns200WithoutSecrets` | unit | `GET /api/v1/pats` as admin → `200`; snake_case `id`, `user_id`, `created_at`, `expires_at`; no key hash or salt (#135, #136) |
 | 4a | `TestListPATs_AsNonAdmin_Returns403` | unit | `GET /api/v1/pats` as a regular user → `403`; the manager is not called (#135) |
 | 5 | `TestPATHandler_DeletePAT_Returns204AsAdmin` | unit | Admin JWT; `DELETE /api/v1/pats/:id` → `204 No Content` |
 | 6 | `TestPATHandler_DeletePAT_Returns403AsNonAdmin` | unit | Non-admin JWT; `DELETE /api/v1/pats/:id` → `403 Forbidden` |
@@ -303,6 +310,10 @@ Testcontainers setup: PostgreSQL container started in `TestMain`; migrations app
 
 | # | Test name | Type | Description |
 |---|-----------|------|-------------|
-| 1 | `TestBootstrap_CreatesAdminUserAndPATOnEmptyDB` | integration | Env vars set; `BootstrapAdmin` called on empty DB; one user with `role=admin` and `provider=pat` exists; one PAT linked via `provider_id` |
+| 1 | `TestBootstrap_CreatesAdminUserAndPATOnEmptyDB` | integration | Env vars set; `BootstrapAdmin` called on empty DB; one user with `role=admin` and `provider=pat` exists; one PAT linked via `user_id` |
 | 2 | `TestBootstrap_IsNoOpWhenUsersAlreadyExist` | integration | Insert one user; call `BootstrapAdmin`; user count remains 1; PAT count remains 0 |
 | 3 | `TestBootstrap_AdminCanAuthenticateWithBootstrapPAT` | integration | Full flow: bootstrap → `ResolveByPAT(rawPAT)` returns the admin user |
+| 4 | `TestCreatePAT_OAuthUser_ResolvesToUserAndKeepsProviderIdentity` | integration | Google user via `ResolveByOAuth` → `CreatePAT` → `ResolveByPAT` returns that user; provider and `provider_id` unchanged; `ResolveByOAuth` still returns the same user; one user row (#136) |
+| 5 | `TestCreatePAT_UnknownUser_LeavesNoOrphan` | integration | `CreatePAT` for an unknown user returns `ErrUserNotFound`; no PAT row is stored (#136) |
+
+**Acceptance (#136):** against the running API with `tools/oauthfake`: a Google user signs in → an admin creates a PAT for them → `POST /auth/token/pat` returns a JWT whose `sub` is that user → the user can still sign in with Google.

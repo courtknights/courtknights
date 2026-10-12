@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -65,13 +66,11 @@ func TestManager_ResolveByPAT_ReturnsUser_WhenKeyMatches(t *testing.T) {
 	rawKey := "correct-raw-key"
 	salt, _ := generateSalt()
 	hash := hashKey(rawKey, salt)
-	patID := uuid.New()
-
-	storedPAT := &pat.PAT{ID: patID, KeyHash: hash, Salt: salt}
 	linkedUser := &user.User{ID: uuid.New(), Email: "carol@example.com", Role: user.RoleUser}
+	storedPAT := &pat.PAT{ID: uuid.New(), UserID: linkedUser.ID, KeyHash: hash, Salt: salt}
 
 	pats.On("FindAll", context.Background()).Return([]*pat.PAT{storedPAT}, nil)
-	users.On("FindByProvider", context.Background(), user.ProviderPAT, patID.String()).Return(linkedUser, nil)
+	users.On("FindByID", context.Background(), linkedUser.ID).Return(linkedUser, nil)
 
 	got, err := mgr.ResolveByPAT(context.Background(), rawKey)
 	require.NoError(t, err)
@@ -117,45 +116,58 @@ func TestManager_ResolveByPAT_ReturnsErrPATExpired_WhenExpired(t *testing.T) {
 
 // ---- CreatePAT ----
 
-func TestManager_CreatePAT_ReturnsNonEmptyRawKey(t *testing.T) {
-	users := &mockUserRepository{}
-	pats := &mockPATRepository{}
-	mgr := newUserManagerForTest(users, pats)
+// #136: the PAT references the user through user_id; the user row is never
+// rewritten, for OAuth and PAT users alike.
+func TestManager_CreatePAT_LinksPATToUserWithoutTouchingIdentity(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider user.Provider
+	}{
+		{name: "google user", provider: user.ProviderGoogle},
+		{name: "github user", provider: user.ProviderGitHub},
+		{name: "pat user", provider: user.ProviderPAT},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := &mockUserRepository{}
+			pats := &mockPATRepository{}
+			mgr := newUserManagerForTest(users, pats)
 
-	userID := uuid.New()
-	patID := uuid.New()
-	existingUser := &user.User{ID: userID, Email: "dave@example.com", Provider: user.ProviderPAT, ProviderID: "old"}
+			existing := &user.User{ID: uuid.New(), Email: "dave@example.com", Provider: tt.provider, ProviderID: "provider-id"}
+			users.On("FindByID", context.Background(), existing.ID).Return(existing, nil)
 
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Return(&pat.PAT{ID: patID, KeyHash: "h", Salt: "s"}, nil)
-	users.On("FindByID", context.Background(), userID).Return(existingUser, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
-		Return(existingUser, nil)
+			var saved *pat.PAT
+			pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
+				Run(func(args mock.Arguments) { saved = args.Get(1).(*pat.PAT) }).
+				Return(&pat.PAT{ID: uuid.New(), UserID: existing.ID}, nil)
 
-	rawKey, err := mgr.CreatePAT(context.Background(), userID, nil)
-	require.NoError(t, err)
-	assert.NotEmpty(t, rawKey)
+			rawKey, err := mgr.CreatePAT(context.Background(), existing.ID, nil)
+			require.NoError(t, err)
+			assert.NotEmpty(t, rawKey)
+			require.NotNil(t, saved)
+			assert.Equal(t, existing.ID, saved.UserID)
+			assert.NotEqual(t, rawKey, saved.KeyHash, "stored hash must differ from raw key")
+			users.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
+			assert.Equal(t, tt.provider, existing.Provider)
+			assert.Equal(t, "provider-id", existing.ProviderID)
+		})
+	}
 }
 
-func TestManager_CreatePAT_StoredHashDiffersFromRawKey(t *testing.T) {
+// #136: an unknown user is reported as ErrUserNotFound and no PAT is saved.
+func TestManager_CreatePAT_UnknownUser_ReturnsErrUserNotFoundAndSavesNothing(t *testing.T) {
 	users := &mockUserRepository{}
 	pats := &mockPATRepository{}
 	mgr := newUserManagerForTest(users, pats)
 
 	userID := uuid.New()
-	patID := uuid.New()
-	existingUser := &user.User{ID: userID, Email: "eve@example.com", Provider: user.ProviderPAT}
-
-	var capturedPAT *pat.PAT
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Run(func(args mock.Arguments) { capturedPAT = args.Get(1).(*pat.PAT) }).
-		Return(&pat.PAT{ID: patID, KeyHash: "h", Salt: "s"}, nil)
-	users.On("FindByID", context.Background(), userID).Return(existingUser, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).Return(existingUser, nil)
+	users.On("FindByID", context.Background(), userID).
+		Return(nil, fmt.Errorf("postgres: FindByID: %w", ckerrors.ErrUserNotFound))
 
 	rawKey, err := mgr.CreatePAT(context.Background(), userID, nil)
-	require.NoError(t, err)
-	assert.NotEqual(t, rawKey, capturedPAT.KeyHash, "stored hash must differ from raw key")
+	require.ErrorIs(t, err, ckerrors.ErrUserNotFound)
+	assert.Empty(t, rawKey)
+	pats.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
 }
 
 // ---- BootstrapAdmin ----
@@ -165,12 +177,14 @@ func TestManager_BootstrapAdmin_CreatesAdminAndPAT(t *testing.T) {
 	pats := &mockPATRepository{}
 	mgr := newUserManagerForTest(users, pats)
 
-	patID := uuid.New()
+	adminID := uuid.New()
 	users.On("CountAll", context.Background()).Return(int64(0), nil)
-	pats.On("Save", context.Background(), mock.AnythingOfType("*pat.PAT")).
-		Return(&pat.PAT{ID: patID}, nil)
-	users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
-		Return(&user.User{ID: uuid.New(), Role: user.RoleAdmin}, nil)
+	users.On("Upsert", context.Background(), mock.MatchedBy(func(u *user.User) bool {
+		return u.Role == user.RoleAdmin && u.Provider == user.ProviderPAT && u.ProviderID != ""
+	})).Return(&user.User{ID: adminID, Role: user.RoleAdmin}, nil)
+	pats.On("Save", context.Background(), mock.MatchedBy(func(p *pat.PAT) bool {
+		return p.UserID == adminID
+	})).Return(&pat.PAT{ID: uuid.New(), UserID: adminID}, nil)
 
 	u, rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
 	require.NoError(t, err)

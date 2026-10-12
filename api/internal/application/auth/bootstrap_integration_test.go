@@ -4,11 +4,16 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +22,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
+	"github.com/courtknights/courtknights/internal/domain/user"
 	"github.com/courtknights/courtknights/internal/infrastructure/postgres"
 )
 
@@ -63,30 +70,31 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// applySchema applies the real db/migrations so these tests run against the
+// production schema (including the PAT → user foreign key, #136).
 func applySchema(ctx context.Context, db *pgxpool.Pool) error {
-	ddl := `
-	CREATE TABLE IF NOT EXISTS users (
-		id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-		email       VARCHAR(255) NOT NULL UNIQUE,
-		name        VARCHAR(255) NOT NULL,
-		role        VARCHAR(50)  NOT NULL DEFAULT 'user'
-		                         CHECK (role IN ('admin', 'user')),
-		provider    VARCHAR(50)  NOT NULL
-		                         CHECK (provider IN ('google', 'github', 'pat')),
-		provider_id VARCHAR(255) NOT NULL,
-		created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-		updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-		UNIQUE (provider, provider_id)
-	);
-	CREATE TABLE IF NOT EXISTS personal_access_tokens (
-		id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-		key_hash    VARCHAR(255) NOT NULL,
-		salt        VARCHAR(255) NOT NULL,
-		expires_at  TIMESTAMPTZ,
-		created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-	);`
-	_, err := db.Exec(ctx, ddl)
-	return err
+	migrationsDir := filepath.Join("..", "..", "..", "..", "db", "migrations")
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("read migrations dir: %w", err)
+	}
+	var upFiles []string
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".up.sql") {
+			upFiles = append(upFiles, e.Name())
+		}
+	}
+	sort.Strings(upFiles)
+	for _, name := range upFiles {
+		sql, err := os.ReadFile(filepath.Join(migrationsDir, name))
+		if err != nil {
+			return fmt.Errorf("read %s: %w", name, err)
+		}
+		if _, err := db.Exec(ctx, string(sql)); err != nil {
+			return fmt.Errorf("apply %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func truncateTables(t *testing.T) {
@@ -143,4 +151,60 @@ func TestBootstrapAdmin_NonEmptyDB_IsNoOp(t *testing.T) {
 	err = integrationDB.QueryRow(context.Background(), "SELECT COUNT(*) FROM users").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), count, "no duplicate users must be created")
+}
+
+func TestBootstrapAdmin_AdminCanAuthenticateWithBootstrapPAT(t *testing.T) {
+	truncateTables(t)
+	mgr := newUserManagerForIntegration()
+
+	admin, rawPAT, err := mgr.BootstrapAdmin(context.Background(), "admin@example.com", "Admin", "bootstrap-secret")
+	require.NoError(t, err)
+
+	resolved, err := mgr.ResolveByPAT(context.Background(), rawPAT)
+	require.NoError(t, err)
+	assert.Equal(t, admin.ID, resolved.ID)
+	assert.Equal(t, user.RoleAdmin, resolved.Role)
+}
+
+// #136: a PAT created for an OAuth user resolves to that user, and the user's
+// provider identity is untouched, so they can still sign in with Google.
+func TestCreatePAT_OAuthUser_ResolvesToUserAndKeepsProviderIdentity(t *testing.T) {
+	truncateTables(t)
+	mgr := newUserManagerForIntegration()
+	ctx := context.Background()
+
+	googleUser, err := mgr.ResolveByOAuth(ctx, user.ProviderGoogle, "google-sub-1", "bob@example.com", "Bob")
+	require.NoError(t, err)
+
+	rawPAT, err := mgr.CreatePAT(ctx, googleUser.ID, nil)
+	require.NoError(t, err)
+
+	resolved, err := mgr.ResolveByPAT(ctx, rawPAT)
+	require.NoError(t, err)
+	assert.Equal(t, googleUser.ID, resolved.ID, "the PAT must resolve to the Google user")
+	assert.Equal(t, user.ProviderGoogle, resolved.Provider)
+	assert.Equal(t, "google-sub-1", resolved.ProviderID)
+
+	again, err := mgr.ResolveByOAuth(ctx, user.ProviderGoogle, "google-sub-1", "bob@example.com", "Bob")
+	require.NoError(t, err, "the user must still be able to sign in with Google")
+	assert.Equal(t, googleUser.ID, again.ID)
+
+	var users int64
+	require.NoError(t, integrationDB.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&users))
+	assert.Equal(t, int64(1), users, "no duplicate user may be created")
+}
+
+// #136: an unknown user is reported as ErrUserNotFound and leaves no orphan PAT.
+func TestCreatePAT_UnknownUser_LeavesNoOrphan(t *testing.T) {
+	truncateTables(t)
+	mgr := newUserManagerForIntegration()
+	ctx := context.Background()
+
+	_, err := mgr.CreatePAT(ctx, uuid.New(), nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ckerrors.ErrUserNotFound), "got: %v", err)
+
+	var pats int64
+	require.NoError(t, integrationDB.QueryRow(ctx, "SELECT COUNT(*) FROM personal_access_tokens").Scan(&pats))
+	assert.Equal(t, int64(0), pats)
 }

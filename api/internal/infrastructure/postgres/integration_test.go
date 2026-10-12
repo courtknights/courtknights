@@ -197,8 +197,9 @@ func TestUserRepository_FindByID_NotFound(t *testing.T) {
 func TestPATRepository_SaveAndFindByID(t *testing.T) {
 	truncate(t)
 	repo := NewPATRepository(testDB)
+	ownerID := createTestUser(t, "Owner")
 
-	saved, err := repo.Save(context.Background(), &pat.PAT{KeyHash: "hash1", Salt: "salt1"})
+	saved, err := repo.Save(context.Background(), &pat.PAT{UserID: ownerID, KeyHash: "hash1", Salt: "salt1"})
 	if err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -212,6 +213,9 @@ func TestPATRepository_SaveAndFindByID(t *testing.T) {
 	}
 	if found.KeyHash != "hash1" {
 		t.Errorf("KeyHash mismatch: got %q", found.KeyHash)
+	}
+	if found.UserID != ownerID {
+		t.Errorf("UserID mismatch: got %v, want %v", found.UserID, ownerID)
 	}
 }
 
@@ -228,8 +232,9 @@ func TestPATRepository_FindByID_NotFound(t *testing.T) {
 func TestPATRepository_Delete_RemovesPAT(t *testing.T) {
 	truncate(t)
 	repo := NewPATRepository(testDB)
+	ownerID := createTestUser(t, "Owner")
 
-	saved, _ := repo.Save(context.Background(), &pat.PAT{KeyHash: "h", Salt: "s"})
+	saved, _ := repo.Save(context.Background(), &pat.PAT{UserID: ownerID, KeyHash: "h", Salt: "s"})
 
 	if err := repo.Delete(context.Background(), saved.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -253,9 +258,11 @@ func TestPATRepository_Delete_NotFound(t *testing.T) {
 func TestPATRepository_FindAll_ReturnsAll(t *testing.T) {
 	truncate(t)
 	repo := NewPATRepository(testDB)
+	ownerID := createTestUser(t, "Owner")
 
 	for i := range 3 {
 		_, err := repo.Save(context.Background(), &pat.PAT{
+			UserID:  ownerID,
 			KeyHash: fmt.Sprintf("hash%d", i),
 			Salt:    fmt.Sprintf("salt%d", i),
 		})
@@ -312,13 +319,42 @@ func TestUserRepository_CountAll_ReturnsCorrectCount(t *testing.T) {
 func TestPATRepository_Save_WithExpiry(t *testing.T) {
 	truncate(t)
 	repo := NewPATRepository(testDB)
+	ownerID := createTestUser(t, "Owner")
 
 	exp := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
-	saved, err := repo.Save(context.Background(), &pat.PAT{KeyHash: "h", Salt: "s", ExpiresAt: &exp})
+	saved, err := repo.Save(context.Background(), &pat.PAT{UserID: ownerID, KeyHash: "h", Salt: "s", ExpiresAt: &exp})
 	if err != nil {
 		t.Fatalf("Save with expiry: %v", err)
 	}
 	if saved.ExpiresAt == nil {
 		t.Fatal("expected ExpiresAt to be set")
+	}
+}
+
+// #136: a PAT must reference an existing user.
+func TestPATRepository_Save_UnknownUser_Fails(t *testing.T) {
+	truncate(t)
+	repo := NewPATRepository(testDB)
+
+	if _, err := repo.Save(context.Background(), &pat.PAT{UserID: uuid.New(), KeyHash: "h", Salt: "s"}); err == nil {
+		t.Fatal("expected a foreign key error for an unknown user, got nil")
+	}
+}
+
+// #136: deleting a user deletes their PATs.
+func TestPATRepository_DeletingUser_CascadesToPATs(t *testing.T) {
+	truncate(t)
+	repo := NewPATRepository(testDB)
+	ownerID := createTestUser(t, "Owner")
+
+	saved, err := repo.Save(context.Background(), &pat.PAT{UserID: ownerID, KeyHash: "h", Salt: "s"})
+	if err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := testDB.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, ownerID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	if _, err := repo.FindByID(context.Background(), saved.ID); !errors.Is(err, ckerrors.ErrPATNotFound) {
+		t.Errorf("expected ErrPATNotFound after deleting the user, got: %v", err)
 	}
 }

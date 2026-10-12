@@ -113,6 +113,23 @@ func TestCreatePAT_AsAdmin_Returns201WithToken(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "raw-pat-key")
 }
 
+// #136: an unknown user_id is a 404, not a 500.
+func TestCreatePAT_UnknownUser_Returns404(t *testing.T) {
+	userID := uuid.New()
+	mgr := &mockAuthManager{}
+	mgr.On("CreatePAT", mock.Anything, userID, (*time.Time)(nil)).
+		Return("", fmt.Errorf("user manager: CreatePAT: find user: %w", ckerrors.ErrUserNotFound))
+
+	h, e := newTestHandler(mgr)
+	body := `{"user_id":"` + userID.String() + `"}`
+	c, _ := contextWithRole(e, http.MethodPost, "/api/v1/pats", body, string(user.RoleAdmin))
+
+	err := h.createPAT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusNotFound, he.Code)
+}
+
 func TestCreatePAT_AsNonAdmin_Returns403(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
 	body := `{"user_id":"` + uuid.New().String() + `"}`
@@ -153,10 +170,10 @@ func TestCreatePAT_InvalidUserID_Returns400(t *testing.T) {
 func TestListPATs_AsAdmin_Returns200WithoutSecrets(t *testing.T) {
 	created := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	expires := created.Add(24 * time.Hour)
-	id1, id2 := uuid.New(), uuid.New()
+	id1, id2, ownerID := uuid.New(), uuid.New(), uuid.New()
 	pats := []*pat.PAT{
-		{ID: id1, KeyHash: "secret-hash-1", Salt: "secret-salt-1", CreatedAt: created},
-		{ID: id2, KeyHash: "secret-hash-2", Salt: "secret-salt-2", CreatedAt: created, ExpiresAt: &expires},
+		{ID: id1, UserID: ownerID, KeyHash: "secret-hash-1", Salt: "secret-salt-1", CreatedAt: created},
+		{ID: id2, UserID: ownerID, KeyHash: "secret-hash-2", Salt: "secret-salt-2", CreatedAt: created, ExpiresAt: &expires},
 	}
 	mgr := &mockAuthManager{}
 	mgr.On("ListPATs", mock.Anything).Return(pats, nil)
@@ -167,8 +184,8 @@ func TestListPATs_AsAdmin_Returns200WithoutSecrets(t *testing.T) {
 	require.NoError(t, h.listPATs(c))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.JSONEq(t, `[
-		{"id":"`+id1.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":null},
-		{"id":"`+id2.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":"2026-10-13T09:00:00Z"}
+		{"id":"`+id1.String()+`","user_id":"`+ownerID.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":null},
+		{"id":"`+id2.String()+`","user_id":"`+ownerID.String()+`","created_at":"2026-10-12T09:00:00Z","expires_at":"2026-10-13T09:00:00Z"}
 	]`, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "secret")
 }

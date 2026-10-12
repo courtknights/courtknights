@@ -26,7 +26,7 @@ func NewPATRepository(db *pgxpool.Pool) *PATRepository {
 
 // FindAll implements pat.PATRepository.
 func (r *PATRepository) FindAll(ctx context.Context) ([]*pat.PAT, error) {
-	const q = `SELECT id, key_hash, salt, expires_at, created_at FROM personal_access_tokens`
+	const q = `SELECT id, user_id, key_hash, salt, expires_at, created_at FROM personal_access_tokens`
 
 	rows, err := r.db.Query(ctx, q)
 	if err != nil {
@@ -50,7 +50,7 @@ func (r *PATRepository) FindAll(ctx context.Context) ([]*pat.PAT, error) {
 
 // FindByID implements pat.PATRepository.
 func (r *PATRepository) FindByID(ctx context.Context, id uuid.UUID) (*pat.PAT, error) {
-	const q = `SELECT id, key_hash, salt, expires_at, created_at FROM personal_access_tokens WHERE id = $1`
+	const q = `SELECT id, user_id, key_hash, salt, expires_at, created_at FROM personal_access_tokens WHERE id = $1`
 
 	row := r.db.QueryRow(ctx, q, id)
 	p, err := scanPAT(row)
@@ -66,11 +66,11 @@ func (r *PATRepository) FindByID(ctx context.Context, id uuid.UUID) (*pat.PAT, e
 // Save implements pat.PATRepository.
 func (r *PATRepository) Save(ctx context.Context, p *pat.PAT) (*pat.PAT, error) {
 	const q = `
-		INSERT INTO personal_access_tokens (key_hash, salt, expires_at)
-		VALUES ($1, $2, $3)
-		RETURNING id, key_hash, salt, expires_at, created_at`
+		INSERT INTO personal_access_tokens (user_id, key_hash, salt, expires_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, user_id, key_hash, salt, expires_at, created_at`
 
-	row := r.db.QueryRow(ctx, q, p.KeyHash, p.Salt, p.ExpiresAt)
+	row := r.db.QueryRow(ctx, q, p.UserID, p.KeyHash, p.Salt, p.ExpiresAt)
 	result, err := scanPAT(row)
 	if err != nil {
 		return nil, fmt.Errorf("postgres: Save PAT: %w", err)
@@ -99,7 +99,7 @@ func scanPAT(scanner interface {
 	var p pat.PAT
 	var expiresAt *time.Time
 	var createdAt time.Time
-	err := scanner.Scan(&p.ID, &p.KeyHash, &p.Salt, &expiresAt, &createdAt)
+	err := scanner.Scan(&p.ID, &p.UserID, &p.KeyHash, &p.Salt, &expiresAt, &createdAt)
 	if err != nil {
 		return nil, err
 	}

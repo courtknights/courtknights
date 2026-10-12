@@ -16,7 +16,8 @@ type PATRepository interface {
 	// Returns ckerrors.ErrPATNotFound if no PAT exists with that ID.
 	FindByID(ctx context.Context, id uuid.UUID) (*PAT, error)
 
-	// Save persists a new PAT record and returns it with the assigned ID and timestamps.
+	// Save persists a new PAT record linked to p.UserID and returns it with the
+	// assigned ID and timestamps. The user must exist.
 	Save(ctx context.Context, p *PAT) (*PAT, error)
 
 	// Delete removes the PAT with the given UUID.
