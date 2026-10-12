@@ -30,6 +30,14 @@ func (m *mockUserRepository) FindByProvider(ctx context.Context, provider user.P
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
+func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
+	args := m.Called(ctx, email)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*user.User), args.Error(1)
+}
+
 func (m *mockUserRepository) Upsert(ctx context.Context, u *user.User) (*user.User, error) {
 	args := m.Called(ctx, u)
 	if args.Get(0) == nil {

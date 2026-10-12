@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -54,6 +55,39 @@ func TestManager_ResolveByOAuth_ReturnsExistingUserOnSecondCall(t *testing.T) {
 	second, err := mgr.ResolveByOAuth(context.Background(), user.ProviderGitHub, "gh-002", "bob@example.com", "Bob")
 	require.NoError(t, err)
 	assert.Equal(t, first.ID, second.ID)
+}
+
+// #132: an email owned by another account is reported with that account's
+// provider, except for "pat" accounts or when the owner cannot be loaded.
+func TestManager_ResolveByOAuth_EmailAlreadyRegistered(t *testing.T) {
+	tests := []struct {
+		name         string
+		owner        *user.User
+		ownerErr     error
+		wantProvider string
+	}{
+		{name: "owned by a github account", owner: &user.User{Provider: user.ProviderGitHub}, wantProvider: "github"},
+		{name: "owned by a google account", owner: &user.User{Provider: user.ProviderGoogle}, wantProvider: "google"},
+		{name: "owned by the pat bootstrap admin", owner: &user.User{Provider: user.ProviderPAT}, wantProvider: ""},
+		{name: "owner lookup fails", ownerErr: errors.New("db down"), wantProvider: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := &mockUserRepository{}
+			mgr := newUserManagerForTest(users, &mockPATRepository{})
+
+			users.On("Upsert", context.Background(), mock.AnythingOfType("*user.User")).
+				Return(nil, fmt.Errorf("postgres: Upsert: %w", ckerrors.ErrEmailAlreadyRegistered))
+			users.On("FindByEmail", context.Background(), "alice@example.com").Return(tt.owner, tt.ownerErr)
+
+			_, err := mgr.ResolveByOAuth(context.Background(), user.ProviderGoogle, "g-001", "alice@example.com", "Alice")
+			require.ErrorIs(t, err, ckerrors.ErrEmailAlreadyRegistered)
+			var conflict *ckerrors.EmailAlreadyRegisteredError
+			require.ErrorAs(t, err, &conflict)
+			assert.Equal(t, tt.wantProvider, conflict.Provider)
+			assert.NotContains(t, err.Error(), "alice@example.com", "the email must not leak into the error")
+		})
+	}
 }
 
 // ---- ResolveByPAT ----

@@ -210,6 +210,45 @@ func TestOAuthCallback_EmailNotVerified_RedirectsWithError(t *testing.T) {
 	assert.Equal(t, "/?error=email_not_verified", rec.Header().Get("Location"))
 }
 
+// #132: an email owned by another account redirects with the owner's provider,
+// or without it when it must not be disclosed. The email is never included.
+func TestOAuthCallback_EmailAlreadyRegistered_RedirectsWithError(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          error
+		wantLocation string
+	}{
+		{
+			name:         "provider disclosed",
+			err:          &ckerrors.EmailAlreadyRegisteredError{Provider: "google"},
+			wantLocation: "/?error=email_already_registered&provider=google",
+		},
+		{
+			name:         "provider withheld",
+			err:          &ckerrors.EmailAlreadyRegisteredError{},
+			wantLocation: "/?error=email_already_registered",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr := &mockAuthManager{}
+			mgr.On("OAuthCallback", mock.Anything, user.ProviderGitHub, "code").
+				Return("", fmt.Errorf("auth manager: OAuthCallback: %w", tt.err))
+
+			h, e := newTestHandler(mgr)
+			req := httptest.NewRequest(http.MethodGet, "/auth/github/callback?code=code", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("provider")
+			c.SetParamValues("github")
+
+			require.NoError(t, h.oauthCallback(c))
+			assert.Equal(t, http.StatusFound, rec.Code)
+			assert.Equal(t, tt.wantLocation, rec.Header().Get("Location"))
+		})
+	}
+}
+
 func TestOAuthCallback_MissingCode_Returns400(t *testing.T) {
 	h, e := newTestHandler(&mockAuthManager{})
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback", nil)
@@ -345,6 +384,43 @@ func TestDeviceToken_EmailNotVerified_Returns400(t *testing.T) {
 	require.NoError(t, h.deviceToken(e.NewContext(req, rec)))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.JSONEq(t, `{"error":"email_not_verified"}`, rec.Body.String())
+}
+
+// #132: a device login whose email is owned by another account returns 409.
+func TestDeviceToken_EmailAlreadyRegistered_Returns409(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantBody string
+	}{
+		{
+			name:     "provider disclosed",
+			err:      &ckerrors.EmailAlreadyRegisteredError{Provider: "google"},
+			wantBody: `{"error":"email_already_registered","provider":"google"}`,
+		},
+		{
+			name:     "provider withheld",
+			err:      &ckerrors.EmailAlreadyRegisteredError{},
+			wantBody: `{"error":"email_already_registered"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr := &mockAuthManager{}
+			mgr.On("DevicePoll", mock.Anything, user.ProviderGitHub, "dev-code").
+				Return("", fmt.Errorf("auth manager: DevicePoll: %w", tt.err))
+
+			h, e := newTestHandler(mgr)
+			req := httptest.NewRequest(http.MethodPost, "/auth/device/token",
+				strings.NewReader(`{"provider":"github","device_code":"dev-code"}`))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+
+			require.NoError(t, h.deviceToken(e.NewContext(req, rec)))
+			assert.Equal(t, http.StatusConflict, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
 }
 
 func TestDeviceToken_ProviderNotConfigured_Returns501(t *testing.T) {

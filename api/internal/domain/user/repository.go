@@ -17,9 +17,15 @@ type UserRepository interface {
 	// Returns ckerrors.ErrUserNotFound if no matching user exists.
 	FindByProvider(ctx context.Context, provider Provider, providerID string) (*User, error)
 
+	// FindByEmail returns the user that owns the given email.
+	// Returns ckerrors.ErrUserNotFound if no user has that email.
+	FindByEmail(ctx context.Context, email string) (*User, error)
+
 	// Upsert creates the user if no row exists for (provider, provider_id),
 	// or updates name, email, and updated_at if it does.
 	// Returns the persisted User (with ID and timestamps populated).
+	// Returns ckerrors.ErrEmailAlreadyRegistered if the email belongs to
+	// another user.
 	Upsert(ctx context.Context, u *User) (*User, error)
 
 	// UpdateRole sets the role for the user with the given ID.

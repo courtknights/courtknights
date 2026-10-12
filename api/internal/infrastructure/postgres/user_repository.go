@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/courtknights/courtknights/internal/domain/ckerrors"
@@ -61,6 +62,36 @@ func (r *UserRepository) FindByProvider(ctx context.Context, provider user.Provi
 	return u, nil
 }
 
+// FindByEmail implements user.UserRepository.
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
+	const q = `
+		SELECT id, email, name, role, provider, provider_id, created_at, updated_at
+		FROM users
+		WHERE email = $1`
+
+	row := r.db.QueryRow(ctx, q, email)
+	u, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("postgres: FindByEmail: %w", ckerrors.ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("postgres: FindByEmail: %w", err)
+	}
+	return u, nil
+}
+
+// usersEmailConstraint is the name PostgreSQL gives the UNIQUE (email)
+// constraint of the users table (db/migrations/001).
+const usersEmailConstraint = "users_email_key"
+
+// isEmailTaken reports whether err is a unique violation on users.email.
+func isEmailTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" && // unique_violation
+		pgErr.ConstraintName == usersEmailConstraint
+}
+
 // Upsert implements user.UserRepository.
 // Creates the user on first call; updates name, email, and updated_at on subsequent calls
 // for the same (provider, provider_id) pair.
@@ -78,6 +109,9 @@ func (r *UserRepository) Upsert(ctx context.Context, u *user.User) (*user.User, 
 	row := r.db.QueryRow(ctx, q, u.Email, u.Name, u.Role, u.Provider, u.ProviderID)
 	result, err := scanUser(row)
 	if err != nil {
+		if isEmailTaken(err) {
+			return nil, fmt.Errorf("postgres: Upsert: %w", ckerrors.ErrEmailAlreadyRegistered)
+		}
 		return nil, fmt.Errorf("postgres: Upsert: %w", err)
 	}
 	return result, nil

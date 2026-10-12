@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 	oauth2infra "github.com/courtknights/courtknights/internal/infrastructure/oauth2"
 )
 
@@ -48,6 +49,20 @@ func deviceTokenStatus(err error) (status int, code string, ok bool) {
 func callbackErrorCode(err error) (code string, ok bool) {
 	if errors.Is(err, oauth2infra.ErrEmailNotVerified) {
 		return "email_not_verified", true
+	}
+	return "", false
+}
+
+// emailConflictProvider reports whether err is an email already owned by
+// another account (#132) and, if it may be disclosed, that account's
+// provider. The email itself is never returned to the client.
+func emailConflictProvider(err error) (provider string, ok bool) {
+	var conflict *ckerrors.EmailAlreadyRegisteredError
+	if errors.As(err, &conflict) {
+		return conflict.Provider, true
+	}
+	if errors.Is(err, ckerrors.ErrEmailAlreadyRegistered) {
+		return "", true
 	}
 	return "", false
 }

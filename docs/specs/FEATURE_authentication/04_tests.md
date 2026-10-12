@@ -33,6 +33,12 @@
 | 6 | `TestPAT_IsExpired_ReturnsFalseWhenFutureExpiry` | unit | PAT with `ExpiresAt` in the future returns `false` |
 | 7 | `TestPAT_IsExpired_ReturnsFalseWhenNeverExpires` | unit | PAT with `ExpiresAt == nil` returns `false` |
 
+**File:** `api/internal/domain/ckerrors/auth_test.go`
+
+| # | Test name | Type | Description |
+|---|-----------|------|-------------|
+| 8 | `TestEmailAlreadyRegisteredError` | unit | `Error()` names the provider, or not when withheld; a wrapped error matches `ErrEmailAlreadyRegistered` with `errors.Is` and keeps the provider with `errors.As` (#132) |
+
 ---
 
 ## T-02 — Database schema
@@ -89,6 +95,9 @@ func TestMain(m *testing.M) {
 | 12 | `TestPATRepository_Delete_UnknownIDReturnsError` | integration | `Delete` with unknown UUID returns error |
 | 13 | `TestPATRepository_Save_UnknownUser_Fails` | integration | `Save` with a `user_id` that does not exist fails on the foreign key (#136) |
 | 14 | `TestPATRepository_DeletingUser_CascadesToPATs` | integration | Deleting a user deletes their PATs (#136) |
+| 15 | `TestUserRepository_FindByEmail` | integration | Returns the user owning an email; unknown email → `ErrUserNotFound` (#132) |
+| 16 | `TestUserRepository_Upsert_NewIdentityWithTakenEmail_ReturnsErrEmailAlreadyRegistered` | integration | New `(provider, provider_id)` with an email another user owns → `ErrEmailAlreadyRegistered` (#132) |
+| 17 | `TestUserRepository_Upsert_EmailChangedToTakenEmail_ReturnsErrEmailAlreadyRegistered` | integration | Existing identity updated to an email another user owns (`DO UPDATE SET email` path) → `ErrEmailAlreadyRegistered` (#132) |
 
 ---
 
@@ -151,6 +160,7 @@ func TestMain(m *testing.M) {
 | 10 | `TestAuthManager_BootstrapAdmin_IsNoOpWhenUsersExist` | unit | `FindAll` returns one user; neither `Upsert` nor `Save` is called |
 | 11 | `TestManager_CreatePAT_LinksPATToUserWithoutTouchingIdentity` | unit | For Google, GitHub and PAT users: the saved PAT has `user_id` = the user; `Upsert` is never called; provider and `provider_id` are unchanged (#136) |
 | 12 | `TestManager_CreatePAT_UnknownUser_ReturnsErrUserNotFoundAndSavesNothing` | unit | `FindByID` returns `ErrUserNotFound`; the error is propagated and `Save` is not called (#136) |
+| 13 | `TestManager_ResolveByOAuth_EmailAlreadyRegistered` | unit | `Upsert` returns `ErrEmailAlreadyRegistered` → `EmailAlreadyRegisteredError` with the owner's provider (github, google), or empty for a `pat` owner or a failed owner lookup; the email is not in the error (#132) |
 
 ---
 
@@ -202,6 +212,7 @@ func TestMain(m *testing.M) {
 | 4 | `TestAuthHandler_GoogleCallback_Returns401OnInvalidCode` | unit | `OAuthCallback` returns error → `401 Unauthorized` |
 | 5 | `TestAuthHandler_GitHubCallback_Returns302WithJWTOnSuccess` | unit | `GET /auth/github/callback?code=valid&state=x` → `302`; redirect URL contains `token=` |
 | 6 | `TestAuthHandler_GitHubCallback_Returns401OnInvalidCode` | unit | `OAuthCallback` returns error → `401 Unauthorized` |
+| 7 | `TestOAuthCallback_EmailAlreadyRegistered_RedirectsWithError` | unit | `OAuthCallback` returns `EmailAlreadyRegisteredError` → `302 /?error=email_already_registered&provider=google`, or without `provider` when withheld; the email is never in the URL (#132) |
 
 ---
 
@@ -218,9 +229,10 @@ func TestMain(m *testing.M) {
 | 5 | `TestAuthHandler_PostDeviceToken_Returns202WhenPending` | unit | `DevicePoll` returns `authorization_pending` → `202`; body contains `error: authorization_pending` |
 | 6 | `TestAuthHandler_PostDeviceToken_Returns400ForMissingDeviceCode` | unit | `POST /auth/device/token {}` → `400 Bad Request` |
 | 7 | `TestDeviceToken_ProtocolErrors` | unit | `slow_down` → `202`; `access_denied`, `expired_token`, invalid device code → `400` with the RFC 8628 code (#128) |
-| 8 | `TestDeviceToken_ProviderNotConfigured_Returns501` | unit | `ErrProviderNotConfigured` → `501` |
-| 9 | `TestDeviceToken_OtherError_Returns401` | unit | Any other error → `401` |
-| 10 | `TestDeviceAuth_ResponseUsesSnakeCaseFields` | unit | `POST /auth/device` body uses `device_code`, `user_code`, `verification_uri`, `expires_in`, `interval` |
+| 8 | `TestDeviceToken_EmailAlreadyRegistered_Returns409` | unit | `DevicePoll` returns `EmailAlreadyRegisteredError` → `409 {"error":"email_already_registered","provider":"google"}`, `provider` omitted when withheld (#132) |
+| 9 | `TestDeviceToken_ProviderNotConfigured_Returns501` | unit | `ErrProviderNotConfigured` → `501` |
+| 10 | `TestDeviceToken_OtherError_Returns401` | unit | Any other error → `401` |
+| 11 | `TestDeviceAuth_ResponseUsesSnakeCaseFields` | unit | `POST /auth/device` body uses `device_code`, `user_code`, `verification_uri`, `expires_in`, `interval` |
 
 ### Device-flow polling (provider adapters) — added by #128
 
@@ -316,6 +328,8 @@ Testcontainers setup: PostgreSQL container started in `TestMain`; migrations app
 | 3 | `TestBootstrap_AdminCanAuthenticateWithBootstrapPAT` | integration | Full flow: bootstrap → `ResolveByPAT(rawPAT)` returns the admin user |
 | 4 | `TestCreatePAT_OAuthUser_ResolvesToUserAndKeepsProviderIdentity` | integration | Google user via `ResolveByOAuth` → `CreatePAT` → `ResolveByPAT` returns that user; provider and `provider_id` unchanged; `ResolveByOAuth` still returns the same user; one user row (#136) |
 | 5 | `TestCreatePAT_UnknownUser_LeavesNoOrphan` | integration | `CreatePAT` for an unknown user returns `ErrUserNotFound`; no PAT row is stored (#136) |
+| 6 | `TestResolveByOAuth_EmailRegisteredWithOtherProvider_ReportsProvider` | integration | Google login, then GitHub login with the same email → `EmailAlreadyRegisteredError{Provider: "google"}`; still one user (#132) |
+| 7 | `TestResolveByOAuth_EmailOwnedByBootstrapAdmin_WithholdsProvider` | integration | Google login with the bootstrap admin's email → `EmailAlreadyRegisteredError` with an empty provider (#132) |
 
 **Acceptance (#136):** against the running API with `tools/oauthfake`: a Google user signs in → an admin creates a PAT for them → `POST /auth/token/pat` returns a JWT whose `sub` is that user → the user can still sign in with Google.
 
