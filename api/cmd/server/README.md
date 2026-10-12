@@ -114,18 +114,16 @@ everything needed to run the server locally without real cloud credentials.
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
 | `postgres` | `postgres:16-alpine` | `5432` | Primary database |
-| `oauth-mock` | `ghcr.io/navikt/mock-oauth2-server:2.1.10` | `8090` | OAuth2 mock for Google and GitHub flows |
+| `oauth-mock` | built from `tools/oauthfake` | `8090` | OAuth2 fake for Google and GitHub: redirect flow and device flow ([ADR-014](../../../docs/decisions/ADR-014_local-oauth-fake.md)) |
+
+The fake accepts any client ID and secret. The same login always maps to the
+same provider user (a stable Google `sub` and a stable numeric GitHub `id`), so
+several test users can coexist.
 
 ### Step 1 — start the stack
 
 ```sh
-docker compose -f docker-compose.dev.yml up -d
-```
-
-Wait for Postgres to be healthy (the compose healthcheck handles this):
-
-```sh
-docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml up -d --build --wait
 ```
 
 ### Step 2 — apply migrations
@@ -138,59 +136,82 @@ migrate -path db/migrations \
 
 ### Step 3 — run the server
 
-Point the OAuth2 endpoint overrides at the local mock so the server redirects
-to `localhost:8090` instead of the real Google/GitHub servers:
+Point every OAuth2 endpoint override at the local fake:
 
 ```sh
 make build
-./build/courtknights-api \
-  --google-client-id       mock-client \
-  --google-client-secret   mock-secret \
-  --google-redirect-url    http://localhost:8080/auth/google/callback \
-  --google-auth-url        http://localhost:8090/google/authorize \
-  --google-token-url       http://localhost:8090/google/token \
-  --google-userinfo-url    http://localhost:8090/google/userinfo \
-  --github-client-id       mock-client \
-  --github-client-secret   mock-secret \
-  --github-redirect-url    http://localhost:8080/auth/github/callback \
-  --github-auth-url        http://localhost:8090/github/authorize \
-  --github-token-url       http://localhost:8090/github/token \
-  --github-userinfo-url    http://localhost:8090/github/userinfo
+./api/build/courtknights-api \
+  --google-client-id        mock-client \
+  --google-client-secret    mock-secret \
+  --google-redirect-url     http://localhost:8080/auth/google/callback \
+  --google-auth-url         http://localhost:8090/google/authorize \
+  --google-token-url        http://localhost:8090/google/token \
+  --google-device-auth-url  http://localhost:8090/google/device/code \
+  --google-userinfo-url     http://localhost:8090/google/userinfo \
+  --github-client-id        mock-client \
+  --github-client-secret    mock-secret \
+  --github-redirect-url     http://localhost:8080/auth/github/callback \
+  --github-auth-url         http://localhost:8090/github/authorize \
+  --github-token-url        http://localhost:8090/github/token \
+  --github-device-auth-url  http://localhost:8090/github/device/code \
+  --github-userinfo-url     http://localhost:8090/github/user
 ```
 
-> The mock's `email`/`name` claims only end up on the issued JWT if you fill
-> them into the **"Optional claims JSON value"** field on the mock's
-> interactive login page (e.g. `{"email": "dev@example.com", "name": "Dev User"}`) —
-> the `subject` field alone only sets `sub`.
+### Step 4a — log in via the browser (redirect flow)
 
-### Step 4 — log in via the browser
-
-Open the authorization URL for the provider you want to test.
-The server handles the redirect — go through **our server**, not the mock directly:
+Go through **our server**, not the fake directly:
 
 ```
 http://localhost:8080/auth/google
 http://localhost:8080/auth/github
 ```
 
-The server redirects to the mock's interactive login UI. After login the mock
-redirects back to the callback URL and the server returns a JWT.
+The server redirects to the fake's sign-in form. Enter any login (for example
+`alice`); email and name are optional and default to `alice@example.com` and
+`alice`. The fake redirects back to the callback, and the server returns a JWT.
 
-Mock endpoints (for reference only — do not call these directly):
+**Scripted login (no form):** append `fake_user=<login>` (and optionally
+`fake_email`, `fake_name`) to the fake's authorize URL, and it approves
+immediately:
 
+```sh
+auth=$(curl -s -o /dev/null -w "%{redirect_url}" http://localhost:8080/auth/github)
+cb=$(curl -s -o /dev/null -w "%{redirect_url}" "$auth&fake_user=alice")
+curl -s -o /dev/null -w "%{redirect_url}\n" "$cb"   # → /?token=<JWT>
 ```
-http://localhost:8090/google/authorize
-http://localhost:8090/google/token
-http://localhost:8090/google/jwks
-http://localhost:8090/github/authorize
-http://localhost:8090/github/token
-http://localhost:8090/github/jwks
+
+> `users.email` is unique and linking several providers to one account is out
+> of scope (FEATURE_authentication). Logging in with GitHub using an email that
+> already exists for a Google user fails with `401`. Use different logins per
+> provider (e.g. `alice` on Google, `gh-alice` on GitHub).
+
+### Step 4b — log in via the device flow (CLI path)
+
+```sh
+curl -s -X POST localhost:8080/auth/device -H 'Content-Type: application/json' \
+  -d '{"provider":"github"}'
+# → { "DeviceCode": "…", "UserCode": "BCDF-GHJK", "VerificationURI": "http://localhost:8090/github/device", … }
+```
+
+Approve the request either by opening the `VerificationURI` in a browser, or
+non-interactively:
+
+```sh
+curl -s -X POST localhost:8090/github/device/approve -d user_code=BCDF-GHJK -d login=alice
+# deny instead: POST localhost:8090/github/device/deny -d user_code=BCDF-GHJK
+```
+
+Then exchange the device code for a JWT:
+
+```sh
+curl -s -X POST localhost:8080/auth/device/token -H 'Content-Type: application/json' \
+  -d '{"provider":"github","device_code":"<DeviceCode>"}'
 ```
 
 ### Step 5 — bootstrap an admin user (optional)
 
 ```sh
-./build/courtknights-api \
+./api/build/courtknights-api \
   --bootstrap-email admin@example.com \
   --bootstrap-name  "Admin" \
   --bootstrap-pat   my-dev-pat
