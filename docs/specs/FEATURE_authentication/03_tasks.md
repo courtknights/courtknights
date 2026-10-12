@@ -291,14 +291,17 @@ T-14 (bootstrap) ── depends on T-06 + T-03
 
 | File                           | Description                                                                        |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `api/api/internal/api/pats/handler.go` | `POST /api/v1/pats` (admin); `GET /api/v1/pats`; `DELETE /api/v1/pats/:id` (admin) |
+| `api/api/internal/api/pats/handler.go` | `POST /api/v1/pats` (admin); `GET /api/v1/pats` (admin); `DELETE /api/v1/pats/:id` (admin) |
 | `api/api/internal/api/pats/routes.go`  | Registers the three routes under `/api/v1` group                                   |
 
 **Tests:** unit tests with mocked `AuthService`.
 - `POST /api/v1/pats` as admin returns `201` with raw PAT (shown once)
 - `POST /api/v1/pats` as non-admin returns `403`
+- `GET /api/v1/pats` as admin returns `200` with `id`, `created_at`, `expires_at` only — never the key hash or salt (#135)
+- `GET /api/v1/pats` as non-admin returns `403` (#135)
 - `DELETE /api/v1/pats/:id` as admin returns `204`
 - `DELETE /api/v1/pats/:id` as non-admin returns `403`
+- `DELETE /api/v1/pats/:id` with an unknown ID returns `404`
 
 **Acceptance:** `make test` passes.
 

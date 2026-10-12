@@ -2,6 +2,7 @@
 package pats
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/courtknights/courtknights/internal/api/common"
 	appauth "github.com/courtknights/courtknights/internal/application/auth"
+	"github.com/courtknights/courtknights/internal/domain/ckerrors"
 )
 
 // Handler handles all PAT management HTTP requests.
@@ -59,15 +61,30 @@ func (h *Handler) createPAT(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]string{"token": rawKey})
 }
 
-// listPATs returns all PATs. Authenticated users only.
+// patResponse is the public representation of a PAT. It never includes the
+// key hash or salt (#135).
+type patResponse struct {
+	ID        string     `json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+// listPATs returns all PATs, without their secrets. Admin only.
 // GET /api/v1/pats
 func (h *Handler) listPATs(c echo.Context) error {
+	if !common.IsAdmin(c) {
+		return echo.NewHTTPError(http.StatusForbidden, "admin role required")
+	}
 	pats, err := h.manager.ListPATs(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list PATs")
 	}
 
-	return c.JSON(http.StatusOK, pats)
+	resp := make([]patResponse, len(pats))
+	for i, p := range pats {
+		resp[i] = patResponse{ID: p.ID.String(), CreatedAt: p.CreatedAt, ExpiresAt: p.ExpiresAt}
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 // revokePAT deletes a PAT by ID. Admin only.
@@ -83,6 +100,9 @@ func (h *Handler) revokePAT(c echo.Context) error {
 	}
 
 	if err := h.manager.RevokePAT(c.Request().Context(), id); err != nil {
+		if errors.Is(err, ckerrors.ErrPATNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "PAT not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to revoke PAT")
 	}
 

@@ -254,17 +254,27 @@ A token stays valid until its `exp` even after a role change. The JWT expiry
 | Method   | Path               | Description                          |
 | -------- | ------------------ | ------------------------------------ |
 | `POST`   | `/api/v1/pats`     | Create a PAT for a user              |
-| `GET`    | `/api/v1/pats`     | List PATs for the authenticated user |
+| `GET`    | `/api/v1/pats`     | List all PATs (metadata only)        |
 | `DELETE` | `/api/v1/pats/:id` | Revoke a PAT                         |
 
 **`POST /api/v1/pats` request:**
 ```json
 { "user_id": "<uuid>", "expires_at": "2027-01-01T00:00:00Z" }
 ```
-**`POST /api/v1/pats` response** (raw value shown once only):
+**`POST /api/v1/pats` response** (`201`; the raw value is shown once only):
 ```json
-{ "id": "<pat-uuid>", "pat": "<raw-value>", "expires_at": "2027-01-01T00:00:00Z" }
+{ "token": "<raw-value>" }
 ```
+
+**`GET /api/v1/pats` response** (`200`):
+```json
+[
+  { "id": "<pat-uuid>", "created_at": "2026-10-12T09:00:00Z", "expires_at": null }
+]
+```
+The list **never** includes `key_hash` or `salt` (#135). All three endpoints
+return `403` for non-admin users. `DELETE /api/v1/pats/:id` returns `204` on
+success and `404` when no PAT has that ID.
 
 ### User management endpoints (protected)
 

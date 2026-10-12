@@ -89,6 +89,9 @@ OAuth2 redirect and Device flows require browser interaction and external provid
 - [ ] An expired PAT returns `401 Unauthorized`
 - [ ] After a PAT is revoked via `DELETE /api/v1/pats/:id`, authenticating with it returns `401`
 - [ ] A non-admin attempting to create a PAT receives `403 Forbidden`
+- [ ] An admin can list PATs via `GET /api/v1/pats`; each entry contains only `id`, `created_at` and `expires_at`, and never the key hash or salt
+- [ ] A non-admin attempting to list or revoke PATs receives `403 Forbidden`
+- [ ] Revoking an unknown PAT ID via `DELETE /api/v1/pats/:id` returns `404 Not Found`
 
 ---
 
