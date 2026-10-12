@@ -55,6 +55,9 @@ func (h *Handler) createPAT(c echo.Context) error {
 
 	rawKey, err := h.manager.CreatePAT(c.Request().Context(), userID, expiresAt)
 	if err != nil {
+		if errors.Is(err, ckerrors.ErrUserNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create PAT")
 	}
 
@@ -65,6 +68,7 @@ func (h *Handler) createPAT(c echo.Context) error {
 // key hash or salt (#135).
 type patResponse struct {
 	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
 	CreatedAt time.Time  `json:"created_at"`
 	ExpiresAt *time.Time `json:"expires_at"`
 }
@@ -82,7 +86,7 @@ func (h *Handler) listPATs(c echo.Context) error {
 
 	resp := make([]patResponse, len(pats))
 	for i, p := range pats {
-		resp[i] = patResponse{ID: p.ID.String(), CreatedAt: p.CreatedAt, ExpiresAt: p.ExpiresAt}
+		resp[i] = patResponse{ID: p.ID.String(), UserID: p.UserID.String(), CreatedAt: p.CreatedAt, ExpiresAt: p.ExpiresAt}
 	}
 	return c.JSON(http.StatusOK, resp)
 }

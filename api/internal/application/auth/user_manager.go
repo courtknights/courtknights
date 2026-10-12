@@ -76,14 +76,22 @@ func (m *userManager) ResolveByPAT(ctx context.Context, rawPAT string) (*user.Us
 		return nil, fmt.Errorf("user manager: ResolveByPAT: %w", ckerrors.ErrPATExpired)
 	}
 
-	u, err := m.users.FindByProvider(ctx, user.ProviderPAT, matched.ID.String())
+	u, err := m.users.FindByID(ctx, matched.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("user manager: ResolveByPAT: %w", err)
 	}
 	return u, nil
 }
 
+// CreatePAT links a new PAT to the user through personal_access_tokens.user_id.
+// The user's provider and provider_id are never modified, so OAuth users keep
+// signing in with their provider (#136). Returns a wrapped
+// ckerrors.ErrUserNotFound, and saves nothing, when the user does not exist.
 func (m *userManager) CreatePAT(ctx context.Context, userID uuid.UUID, expiresAt *time.Time) (string, error) {
+	if _, err := m.users.FindByID(ctx, userID); err != nil {
+		return "", fmt.Errorf("user manager: CreatePAT: find user: %w", err)
+	}
+
 	rawKey, err := generateRawKey()
 	if err != nil {
 		return "", fmt.Errorf("user manager: CreatePAT: generate key: %w", err)
@@ -93,22 +101,13 @@ func (m *userManager) CreatePAT(ctx context.Context, userID uuid.UUID, expiresAt
 		return "", fmt.Errorf("user manager: CreatePAT: generate salt: %w", err)
 	}
 
-	saved, err := m.pats.Save(ctx, &pat.PAT{
+	if _, err := m.pats.Save(ctx, &pat.PAT{
+		UserID:    userID,
 		KeyHash:   hashKey(rawKey, salt),
 		Salt:      salt,
 		ExpiresAt: expiresAt,
-	})
-	if err != nil {
+	}); err != nil {
 		return "", fmt.Errorf("user manager: CreatePAT: save: %w", err)
-	}
-
-	existing, err := m.users.FindByID(ctx, userID)
-	if err != nil {
-		return "", fmt.Errorf("user manager: CreatePAT: find user: %w", err)
-	}
-	existing.ProviderID = saved.ID.String()
-	if _, err := m.users.Upsert(ctx, existing); err != nil {
-		return "", fmt.Errorf("user manager: CreatePAT: link user: %w", err)
 	}
 
 	return rawKey, nil
@@ -158,23 +157,25 @@ func (m *userManager) BootstrapAdmin(ctx context.Context, email, name, rawPAT st
 		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: generate salt: %w", err)
 	}
 
-	savedPAT, err := m.pats.Save(ctx, &pat.PAT{
-		KeyHash: hashKey(rawPAT, salt),
-		Salt:    salt,
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: save PAT: %w", err)
-	}
-
+	// The bootstrap user has no external identity: provider_id is an opaque,
+	// unique placeholder. The PAT references the user through user_id.
 	u, err := m.users.Upsert(ctx, &user.User{
 		Email:      email,
 		Name:       name,
 		Role:       user.RoleAdmin,
 		Provider:   user.ProviderPAT,
-		ProviderID: savedPAT.ID.String(),
+		ProviderID: uuid.NewString(),
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: upsert user: %w", err)
+	}
+
+	if _, err := m.pats.Save(ctx, &pat.PAT{
+		UserID:  u.ID,
+		KeyHash: hashKey(rawPAT, salt),
+		Salt:    salt,
+	}); err != nil {
+		return nil, "", fmt.Errorf("user manager: BootstrapAdmin: save PAT: %w", err)
 	}
 
 	return u, rawPAT, nil

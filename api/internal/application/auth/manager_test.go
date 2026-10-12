@@ -211,11 +211,10 @@ func TestAuthManager_ExchangePAT_ValidPAT_ReturnsJWT(t *testing.T) {
 	rawKey := "valid-pat-key"
 	salt, _ := generateSalt()
 	hash := hashKey(rawKey, salt)
-	patID := uuid.New()
 	linked := &user.User{ID: uuid.New(), Email: "carol@example.com", Role: user.RoleUser}
 
-	patRepo.On("FindAll", mock.Anything).Return([]*pat.PAT{{ID: patID, KeyHash: hash, Salt: salt}}, nil)
-	userRepo.On("FindByProvider", mock.Anything, user.ProviderPAT, patID.String()).Return(linked, nil)
+	patRepo.On("FindAll", mock.Anything).Return([]*pat.PAT{{ID: uuid.New(), UserID: linked.ID, KeyHash: hash, Salt: salt}}, nil)
+	userRepo.On("FindByID", mock.Anything, linked.ID).Return(linked, nil)
 	jwtAdapt.On("Sign", linked).Return("pat-jwt", nil)
 
 	mgr := newTestAuthManager(userRepo, patRepo, map[user.Provider]oauth2infra.Provider{}, jwtAdapt, &mockProfileManager{})

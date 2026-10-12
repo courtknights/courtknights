@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -10,9 +11,7 @@ import (
 // newRootCmd builds the root Cobra command, registers all flags, and binds them
 // to the provided Viper instance so they can also be set via environment variables.
 func newRootCmd() *cobra.Command {
-	v := viper.New()
-	v.SetEnvPrefix("COURTKNIGHTS")
-	v.AutomaticEnv()
+	v := newViper()
 
 	cmd := &cobra.Command{
 		Use:   "courtknights-api",
@@ -25,6 +24,18 @@ func newRootCmd() *cobra.Command {
 	registerFlags(cmd, v)
 
 	return cmd
+}
+
+// newViper returns a Viper instance that reads COURTKNIGHTS_* environment
+// variables. Config keys are nested ("bootstrap.email"), so "." is mapped to
+// "_" to match the documented names (COURTKNIGHTS_BOOTSTRAP_EMAIL); without
+// the replacer Viper would look for COURTKNIGHTS_BOOTSTRAP.EMAIL.
+func newViper() *viper.Viper {
+	v := viper.New()
+	v.SetEnvPrefix("COURTKNIGHTS")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+	return v
 }
 
 // registerFlags declares all CLI flags and binds each one to its Viper key.

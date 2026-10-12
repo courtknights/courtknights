@@ -20,7 +20,7 @@ When a feature is modified, all dependent features in this map must have their t
 | Feature | Description | Depends on | Depended on by |
 |---------|-------------|------------|----------------|
 | FEATURE_authentication / domain | `user`, `pat`, `ckerrors` domain entities | — | All auth layers |
-| FEATURE_authentication / postgres | `UserRepository`, `PATRepository` (PostgreSQL) | domain | application/auth, api/cmd/server |
+| FEATURE_authentication / postgres | `UserRepository`, `PATRepository` (PostgreSQL); `personal_access_tokens.user_id` references `users(id)` with `ON DELETE CASCADE` (migration 004, #136) | domain | application/auth, api/cmd/server |
 | FEATURE_authentication / infrastructure/jwt | JWT sign + validate | domain | application/auth, api/internal/api/common |
 | FEATURE_authentication / infrastructure/oauth2 | Google + GitHub OAuth2 providers | domain | application/auth |
 | FEATURE_authentication / application | `UserManager`, `JWTManager`, `OAuthManager`, `AuthManager` | domain, postgres, jwt, oauth2, FEATURE_user_profile / application (cross-feature via `ProfileInitializer`, ADR-013) | All API handlers |

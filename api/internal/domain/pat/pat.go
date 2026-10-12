@@ -12,6 +12,8 @@ import (
 type PAT struct {
 	// ID is the internal UUID primary key.
 	ID uuid.UUID
+	// UserID is the user the PAT authenticates as (personal_access_tokens.user_id).
+	UserID uuid.UUID
 	// KeyHash is the hashed representation of the raw token.
 	KeyHash string
 	// Salt is the random salt used when hashing the raw token.

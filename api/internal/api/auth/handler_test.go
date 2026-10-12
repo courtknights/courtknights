@@ -418,7 +418,7 @@ func TestExchangePAT_ValidToken_Returns200WithJWT(t *testing.T) {
 		Return("signed-jwt", nil)
 
 	h, e := newTestHandler(mgr)
-	body := `{"token":"raw-pat-token"}`
+	body := `{"pat":"raw-pat-token"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -436,7 +436,7 @@ func TestExchangePAT_InvalidToken_Returns401(t *testing.T) {
 		Return("", errors.New("invalid token"))
 
 	h, e := newTestHandler(mgr)
-	body := `{"token":"bad-pat"}`
+	body := `{"pat":"bad-pat"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -459,6 +459,22 @@ func TestExchangePAT_MissingToken_Returns400(t *testing.T) {
 	var he *echo.HTTPError
 	require.ErrorAs(t, err, &he)
 	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+// The request field is "pat", as in the spec; "token" is not accepted.
+func TestExchangePAT_TokenField_Returns400(t *testing.T) {
+	mgr := &mockAuthManager{}
+	h, e := newTestHandler(mgr)
+	req := httptest.NewRequest(http.MethodPost, "/auth/token/pat", strings.NewReader(`{"token":"raw-pat-token"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.exchangePAT(c)
+	var he *echo.HTTPError
+	require.ErrorAs(t, err, &he)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+	mgr.AssertNotCalled(t, "ExchangePAT", mock.Anything, mock.Anything)
 }
 
 // ---- POST /auth/refresh ----
