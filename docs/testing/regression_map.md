@@ -3,7 +3,7 @@
 Tracks dependencies between features. Update this file every time a feature is merged.
 When a feature is modified, all dependent features in this map must have their tests re-run.
 
-- **Last updated:** 2026-04-04
+- **Last updated:** 2026-10-12
 
 ---
 
@@ -23,7 +23,7 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_authentication / postgres | `UserRepository`, `PATRepository` (PostgreSQL) | domain | application/auth, api/cmd/server |
 | FEATURE_authentication / infrastructure/jwt | JWT sign + validate | domain | application/auth, api/internal/api/common |
 | FEATURE_authentication / infrastructure/oauth2 | Google + GitHub OAuth2 providers | domain | application/auth |
-| FEATURE_authentication / application | `UserManager`, `JWTManager`, `OAuthManager`, `AuthManager` | domain, postgres, jwt, oauth2 | All API handlers |
+| FEATURE_authentication / application | `UserManager`, `JWTManager`, `OAuthManager`, `AuthManager` | domain, postgres, jwt, oauth2, FEATURE_user_profile / application (cross-feature via `ProfileInitializer`, ADR-013) | All API handlers |
 | FEATURE_authentication / api/auth | OAuth2 redirect, device flow, PAT exchange, JWT refresh handlers | application/auth, api/internal/api/common | — |
 | FEATURE_authentication / api/pats | PAT management handlers (`/api/v1/pats`) | application/auth, api/internal/api/common | — |
 | FEATURE_authentication / api/users | User management handlers (`/api/v1/users`) | application/auth, api/internal/api/common | — |
@@ -39,7 +39,7 @@ When a feature is modified, all dependent features in this map must have their t
 | FEATURE_user_profile / T-01 | `profile` domain entities (`Profile`, `Preferences`, enums), `ProfileRepository` interface, `ValidateLocation`, `ckerrors.ErrProfileNotFound` | — | FEATURE_user_profile / T-03..T-07 |
 | FEATURE_user_profile / T-02 | `user_profiles` DB migration (003) + schema definition | FEATURE_authentication / postgres | FEATURE_user_profile / T-03 |
 | FEATURE_user_profile / T-03 | `ProfileRepository` PostgreSQL implementation (`EnsureExists`, `FindByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-02, FEATURE_authentication / postgres | FEATURE_user_profile / T-05 |
-| FEATURE_user_profile / T-04 | `ProfileManager` application layer (`EnsureExists`, `GetByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-03 | FEATURE_user_profile / T-05, T-06, T-07 |
+| FEATURE_user_profile / T-04 | `ProfileManager` application layer (`EnsureExists`, `GetByUserID`, `Update`, `List`) | FEATURE_user_profile / T-01, T-03 | FEATURE_user_profile / T-05, T-06, T-07, FEATURE_authentication / application (cross-feature via `ProfileInitializer`, ADR-013) |
 | FEATURE_user_profile / T-05 | Auth integration: profile initialisation on login (`AuthManager` extended, `UserManager.BootstrapAdmin` returns user, server wiring) | FEATURE_user_profile / T-03, T-04, FEATURE_authentication / application | FEATURE_authentication / cmd/server |
 | FEATURE_user_profile / T-06 | Profile HTTP endpoints in `api/profile` (`GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`) | FEATURE_user_profile / T-04 | — |
 | FEATURE_user_profile / T-07 | List users endpoint in `api/profile` (`GET /users` with pagination and field selection) | FEATURE_user_profile / T-04 | — |

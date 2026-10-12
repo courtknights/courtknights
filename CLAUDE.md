@@ -148,7 +148,9 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 | Primary database | PostgreSQL | [ADR-003](docs/decisions/ADR-003_database-postgresql.md) |
 | Integration test infrastructure | Testcontainers | [ADR-004](docs/decisions/ADR-004_testcontainers.md) |
 | Go workspace | go.work | [ADR-009](docs/decisions/ADR-009_go-workspace.md) |
+| Layered architecture (Handler / Manager / Repository) | Manager composition | [ADR-008](docs/decisions/ADR-008_layered-architecture.md) |
 | Database migrations | golang-migrate | [ADR-010](docs/decisions/ADR-010_migration-tool-golang-migrate.md) |
+| Cross-feature dependencies | Narrow consumer-side interfaces, idempotent writes | [ADR-013](docs/decisions/ADR-013_cross-feature-dependencies.md) |
 
 ### Dependency tracking
 
