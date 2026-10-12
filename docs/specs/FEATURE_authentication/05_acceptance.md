@@ -1,6 +1,6 @@
 # FEATURE_authentication — Acceptance Criteria
 
-- **Last updated:** 2026-03-18
+- **Last updated:** 2026-10-12
 - **Status:** draft — pending human review and sign-off
 - **Issue:** [#6](https://github.com/courtknights/courtknights/issues/6)
 - **Author:** <!-- your name here -->
@@ -31,8 +31,8 @@ OAuth2 redirect and Device flows require browser interaction and external provid
 
 > The service starts and operates correctly with only one OAuth2 provider configured.
 
-- [ ] If only `COURTKNIGHTS_OAUTH_GOOGLE_*` env vars are set, the service starts and Google login works; GitHub endpoints return `501 Not Implemented`
-- [ ] If only `COURTKNIGHTS_OAUTH_GITHUB_*` env vars are set, the service starts and GitHub login works; Google endpoints return `501 Not Implemented`
+- [ ] If only `COURTKNIGHTS_GOOGLE_*` env vars are set, the service starts and Google login works; GitHub endpoints return `501 Not Implemented`
+- [ ] If only `COURTKNIGHTS_GITHUB_*` env vars are set, the service starts and GitHub login works; Google endpoints return `501 Not Implemented`
 - [ ] If both providers are configured, both work correctly
 - [ ] If neither provider is configured but a bootstrap PAT is set, the service starts and PAT authentication works
 - [ ] Missing provider credentials do not cause a startup crash — only the affected endpoints are disabled
@@ -61,7 +61,11 @@ OAuth2 redirect and Device flows require browser interaction and external provid
 - [ ] `GET /auth/github` redirects the browser to the OAuth2 consent page
 - [ ] After consent, the backend creates or returns the User record linked to the GitHub identity
 - [ ] The response redirects to the frontend with a valid JWT
-- [ ] A user who previously logged in with Google and attempts to log in with GitHub with the same email is treated as a different identity (separate User records, one per provider)
+- [ ] A user who previously logged in with Google and attempts to log in with GitHub with the same email is rejected, because `users.email` is unique and linking providers is out of scope (#132):
+  - redirect flow: `302 → /?error=email_already_registered&provider=google`
+  - device flow: `409 {"error":"email_already_registered","provider":"google"}`
+  - no second User record is created, and the email never appears in the response
+  - when the email belongs to the bootstrap admin (`provider = pat`), `provider` is omitted
 
 ---
 
@@ -89,7 +93,7 @@ OAuth2 redirect and Device flows require browser interaction and external provid
 - [ ] An expired PAT returns `401 Unauthorized`
 - [ ] After a PAT is revoked via `DELETE /api/v1/pats/:id`, authenticating with it returns `401`
 - [ ] A non-admin attempting to create a PAT receives `403 Forbidden`
-- [ ] An admin can list PATs via `GET /api/v1/pats`; each entry contains only `id`, `created_at` and `expires_at`, and never the key hash or salt
+- [ ] An admin can list PATs via `GET /api/v1/pats`; each entry contains only `id`, `user_id`, `created_at` and `expires_at`, and never the key hash or salt
 - [ ] A non-admin attempting to list or revoke PATs receives `403 Forbidden`
 - [ ] Revoking an unknown PAT ID via `DELETE /api/v1/pats/:id` returns `404 Not Found`
 
