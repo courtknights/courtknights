@@ -258,6 +258,7 @@ func TestMain(m *testing.M) {
 | 2 | `TestAuthHandler_PostTokenPAT_Returns401ForInvalidPAT` | unit | `ExchangePAT` returns `ErrInvalidPAT` → `401 Unauthorized` |
 | 3 | `TestAuthHandler_PostTokenPAT_Returns401ForExpiredPAT` | unit | `ExchangePAT` returns `ErrPATExpired` → `401 Unauthorized` |
 | 4 | `TestAuthHandler_PostTokenPAT_Returns400ForMissingBody` | unit | `POST /auth/token/pat {}` → `400 Bad Request` |
+| 4a | `TestExchangePAT_TokenField_Returns400` | unit | `POST /auth/token/pat {"token":"…"}` → `400`; the request field is `pat`, and the manager is not called |
 | 5 | `TestAuthHandler_PostRefresh_Returns200WithNewJWT` | unit | `POST /auth/refresh` with valid JWT → `200`; body contains new `token` |
 | 6 | `TestAuthHandler_PostRefresh_Returns401WithExpiredJWT` | unit | `POST /auth/refresh` with expired JWT → `401 Unauthorized` |
 | 7 | `TestAuthHandler_PostRefresh_Returns401WithMissingJWT` | unit | `POST /auth/refresh` with no `Authorization` header → `401 Unauthorized` |
@@ -317,3 +318,14 @@ Testcontainers setup: PostgreSQL container started in `TestMain`; migrations app
 | 5 | `TestCreatePAT_UnknownUser_LeavesNoOrphan` | integration | `CreatePAT` for an unknown user returns `ErrUserNotFound`; no PAT row is stored (#136) |
 
 **Acceptance (#136):** against the running API with `tools/oauthfake`: a Google user signs in → an admin creates a PAT for them → `POST /auth/token/pat` returns a JWT whose `sub` is that user → the user can still sign in with Google.
+
+---
+
+## T-15 — Server configuration
+
+**File:** `api/cmd/server/command_test.go`
+
+| # | Test name | Type | Description |
+|---|-----------|------|-------------|
+| 1 | `TestLoadConfig_ReadsEnvironmentVariables` | unit | Each of the 21 documented `COURTKNIGHTS_*` variables (e.g. `COURTKNIGHTS_BOOTSTRAP_EMAIL`, `COURTKNIGHTS_GOOGLE_CLIENT_ID`) reaches its config field |
+| 2 | `TestLoadConfig_FlagOverridesEnvironment` | unit | A CLI flag takes precedence over the matching environment variable |

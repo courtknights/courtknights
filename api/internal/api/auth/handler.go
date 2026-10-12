@@ -126,16 +126,16 @@ func (h *Handler) deviceToken(c echo.Context) error {
 }
 
 // exchangePAT trades a raw PAT for a signed JWT.
-// POST /auth/token/pat
+// POST /auth/token/pat {"pat": "<raw-pat>"}
 func (h *Handler) exchangePAT(c echo.Context) error {
 	var req struct {
-		Token string `json:"token"`
+		PAT string `json:"pat"`
 	}
-	if err := c.Bind(&req); err != nil || req.Token == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "token is required")
+	if err := c.Bind(&req); err != nil || req.PAT == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "pat is required")
 	}
 
-	jwt, err := h.manager.ExchangePAT(c.Request().Context(), req.Token)
+	jwt, err := h.manager.ExchangePAT(c.Request().Context(), req.PAT)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}

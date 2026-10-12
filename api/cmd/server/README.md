@@ -217,8 +217,15 @@ curl -s -X POST localhost:8080/auth/device/token -H 'Content-Type: application/j
   --bootstrap-pat   my-dev-pat
 ```
 
-The PAT can then be used directly in the `Authorization: Bearer <pat>` header,
-or exchanged for a JWT via `POST /auth/token/pat`.
+Exchange the PAT for a JWT, then send the JWT in the `Authorization: Bearer <jwt>`
+header. PATs are never accepted directly by protected endpoints (ADR-006).
+
+```sh
+curl -X POST localhost:8080/auth/token/pat \
+  -H 'Content-Type: application/json' \
+  -d '{"pat":"my-dev-pat"}'
+# {"token":"<jwt>"}
+```
 
 ### Tear down
 
