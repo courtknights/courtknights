@@ -54,7 +54,7 @@ the real `db/migrations`.
 | `TestPatchProfile_ErrorMapping` | Manager returns `ErrInvalidLocation` → `400`, `ErrProfileNotFound` → `404`, `ErrProfileConflict` → `409`, other → `500` with a generic message | TASK-005 |
 | `TestPatchProfile_EmptyObject` | `{}` → `200` with the current profile | TASK-005 |
 | `TestPatchProfile_ResponseShape` | Cleared fields serialise as `null`; response equals the `GET` shape | TASK-005 |
-| `TestPutProfile_Removed` | `PUT /api/v1/users/me/profile` on the router → `405` | TASK-005 |
+| `TestPutProfile_Removed` | `PUT /api/v1/users/me/profile` on a router group with middleware, as in production → `404` | TASK-005 |
 
 ## Integration tests
 
@@ -87,7 +87,7 @@ the real `db/migrations`.
 - [ ] `{"country": "ES"}` on `ES`/`ES-MD` → region kept (TASK-004)
 - [ ] Concurrent country change between read and write → `409` (TASK-002, TASK-005)
 - [ ] `{}` → `200`, nothing written (TASK-003, TASK-004, TASK-005)
-- [ ] `PUT /users/me/profile` → `405` (TASK-005)
+- [ ] `PUT /users/me/profile` → `404` (TASK-005)
 
 ## Frontend tests
 

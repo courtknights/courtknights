@@ -212,7 +212,7 @@ func TestUpdateMyProfile_DisplayNameOnly_Returns200(t *testing.T) {
 	})).Return(p, nil)
 
 	h, e := newTestHandler(mgr)
-	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+	c, rec := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile",
 		`{"display_name":"X"}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -241,7 +241,7 @@ func TestUpdateMyProfile_AllFields_Returns200(t *testing.T) {
 	}`
 
 	h, e := newTestHandler(mgr)
-	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile", body, userID.String())
+	c, rec := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile", body, userID.String())
 
 	err := h.updateMyProfile(c)
 	require.NoError(t, err)
@@ -256,7 +256,7 @@ func TestUpdateMyProfile_InvalidCountry_Returns400(t *testing.T) {
 	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, fmt.Errorf("%w: invalid country code", ckerrors.ErrInvalidLocation))
 
 	h, e := newTestHandler(mgr)
-	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+	c, _ := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile",
 		`{"country":"XX"}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -273,7 +273,7 @@ func TestUpdateMyProfile_RegionWithoutCountry_Returns400(t *testing.T) {
 	mgr.On("Update", mock.Anything, userID, mock.Anything).Return(nil, fmt.Errorf("%w: region requires country", ckerrors.ErrInvalidLocation))
 
 	h, e := newTestHandler(mgr)
-	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+	c, _ := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile",
 		`{"region":"ES-MD"}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -291,7 +291,7 @@ func TestUpdateMyProfile_ManagerError_Returns500(t *testing.T) {
 		Return(nil, errors.New("profile manager: Update: postgres: connection refused"))
 
 	h, e := newTestHandler(mgr)
-	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+	c, _ := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile",
 		`{"display_name":"X"}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -308,7 +308,7 @@ func TestUpdateMyProfile_InvalidGender_Returns400(t *testing.T) {
 	mgr := &mockProfileManager{}
 
 	h, e := newTestHandler(mgr)
-	c, _ := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile",
+	c, _ := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile",
 		`{"gender":"unknown"}`, userID.String())
 
 	err := h.updateMyProfile(c)
@@ -329,7 +329,7 @@ func TestUpdateMyProfile_EmptyBody_Returns200(t *testing.T) {
 	})).Return(p, nil)
 
 	h, e := newTestHandler(mgr)
-	c, rec := contextWithAuthAndSub(e, http.MethodPut, "/api/v1/users/me/profile", `{}`, userID.String())
+	c, rec := contextWithAuthAndSub(e, http.MethodPatch, "/api/v1/users/me/profile", `{}`, userID.String())
 
 	err := h.updateMyProfile(c)
 	require.NoError(t, err)

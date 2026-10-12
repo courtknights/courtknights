@@ -153,8 +153,10 @@ An empty object `{}` is valid and returns the current profile unchanged.
 
 ### `PUT /api/v1/users/me/profile` — removed
 
-The route is deleted. Echo answers `405 Method Not Allowed` because other
-methods exist on the path.
+The route is deleted and the request returns `404 Not Found`. The protected
+`/api/v1` group has middleware (JWT), and Echo then registers catch-all routes
+that answer 404 for any unregistered method on the group, so every endpoint of
+the API behaves this way (decided by the architect during TASK-005).
 
 ### Location rules (applied by the manager)
 

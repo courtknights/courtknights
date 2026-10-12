@@ -15,7 +15,7 @@
 **Given** a signed-in user
 **When** they call `PATCH /api/v1/users/me/profile` with `Content-Type: application/merge-patch+json` or `application/json`
 **Then** the response is `200 OK` with the updated profile, in the same shape as `GET /api/v1/users/me/profile`.
-**And** `PUT /api/v1/users/me/profile` no longer exists (`405 Method Not Allowed`).
+**And** `PUT /api/v1/users/me/profile` no longer exists (`404 Not Found`, like any unregistered method on the protected API).
 **And** any other `Content-Type` returns `415 Unsupported Media Type`.
 
 ---
