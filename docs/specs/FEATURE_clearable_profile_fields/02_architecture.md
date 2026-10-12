@@ -279,8 +279,9 @@ handler, which owns HTTP validation (ADR-008).
 
 ## New architectural decisions
 
-**ADR-015 — Partial updates use JSON Merge Patch (RFC 7396).** Created by
-TASK-001 (the design branch may only touch `docs/specs/`). Proposed content:
+**ADR-015 — Partial updates use JSON Merge Patch (RFC 7396).** Recorded in
+[ADR-015](../../decisions/ADR-015_partial-updates-json-merge-patch.md)
+(TASK-001). Summary:
 
 - Partial updates use `PATCH` with RFC 7396 semantics: omitted → unchanged,
   `null` → cleared, value → set, nested objects merged recursively.

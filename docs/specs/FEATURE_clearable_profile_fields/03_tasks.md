@@ -47,7 +47,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-001: ADR-015 — partial updates use JSON Merge Patch
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#144](https://github.com/courtknights/courtknights/issues/144)
 - **Depends on:** none
 - **Layer(s):** docs
 - **Description:**
@@ -67,7 +67,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-002: Region/country CHECK constraint and `ErrProfileConflict`
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#145](https://github.com/courtknights/courtknights/issues/145)
 - **Depends on:** none
 - **Layer(s):** db, domain, infrastructure
 - **Description:**
@@ -87,7 +87,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-003: Tri-state `ProfilePatch` and repository support for clearing
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#146](https://github.com/courtknights/courtknights/issues/146)
 - **Depends on:** TASK-002
 - **Layer(s):** domain, infrastructure (callers adapted mechanically)
 - **Description:**
@@ -114,7 +114,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-004: Manager location rules for merge patches
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#147](https://github.com/courtknights/courtknights/issues/147)
 - **Depends on:** TASK-003
 - **Layer(s):** application
 - **Description:**
@@ -136,7 +136,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-005: `PATCH /users/me/profile` with JSON Merge Patch; remove PUT
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#148](https://github.com/courtknights/courtknights/issues/148)
 - **Depends on:** TASK-004
 - **Layer(s):** transport
 - **Description:**
@@ -161,7 +161,7 @@ TASK-001 and TASK-002 are independent of each other.
 
 ### TASK-006: Documentation and regression map
 
-- **GitHub Issue:** #
+- **GitHub Issue:** [#149](https://github.com/courtknights/courtknights/issues/149)
 - **Depends on:** TASK-005
 - **Layer(s):** docs
 - **Description:**
