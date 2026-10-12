@@ -1,14 +1,12 @@
 # FEATURE_clearable_profile_fields — Acceptance Criteria
 
 - **Last updated:** 2026-10-12
-- **Status:** draft — proposed by the AI agent from issue #121, pending human review and approval
+- **Status:** approved
 - **Issue:** [#121](https://github.com/courtknights/courtknights/issues/121)
-- **Author:** <!-- human owner -->
+- **Author:** aagea (drafted by the AI agent from issue #121)
 
-> This document is written and owned by the human architect. This draft
-> transcribes the requirements of #121 so they can be reviewed; edit freely,
-> then change the status line above to `approved` (the `spec-ref` CI check
-> requires it before any task PR can merge).
+> This document is owned by the human architect. It was drafted by the AI
+> agent from the requirements of #121 and approved by the architect.
 
 ---
 
@@ -111,4 +109,4 @@ This supersedes the "region without country → 400" clause of FEATURE_user_prof
 
 | Role      | Name | Date | Status |
 | --------- | ---- | ---- | ------ |
-| Architect |      |      | [ ]    |
+| Architect | aagea | 2026-10-12 | [x] approved |
