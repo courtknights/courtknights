@@ -106,6 +106,10 @@ func NewAuthManager(u UserManager, j JWTManager, o OAuthManager) AuthManager {
 }
 ```
 
+> Simplified. The real `NewAuthManager` also takes a `ProfileInitializer`, a
+> cross-feature dependency on the user_profile feature (see
+> [ADR-013](ADR-013_cross-feature-dependencies.md)).
+
 ```go
 // api/internal/api/auth/handler.go
 
@@ -130,7 +134,10 @@ type AuthHandler struct { manager auth.AuthManager }  // depends on interface on
 - **Sub-managers** (`<Concern>Manager`) encapsulate a specific, limited
   responsibility and are injected into the feature manager as interfaces.
 - Any manager may call repositories, infrastructure adapters, or other
-  managers — always via injected interfaces, never concrete types.
+  managers of the **same feature** — always via injected interfaces, never
+  concrete types. Calls into **another feature** follow
+  [ADR-013](ADR-013_cross-feature-dependencies.md): a narrow interface declared
+  by the consuming feature, wired in `cmd/server`.
 - Returns domain entities or wrapped sentinel errors.
 - Fully unit-testable: replace any dependency with a mock of its interface.
 
@@ -164,14 +171,15 @@ Infrastructure adapters (JWT, OAuth2 providers, email, …) live in
 manager that uses them. This keeps managers unit-testable without any external
 process running.
 
-### Package layout (authentication feature)
+### Package layout (authentication and user_profile features)
 
 ```
 api/internal/
   domain/
     user/           user.go, repository.go   ← UserRepository interface
     pat/            pat.go, repository.go    ← PATRepository interface
-    ckerrors/       auth.go
+    profile/        profile.go, repository.go ← ProfileRepository interface
+    ckerrors/       auth.go, profile.go
 
   application/
     auth/
@@ -179,11 +187,14 @@ api/internal/
       user_manager.go     ← UserManager interface + userManager struct
       jwt_manager.go      ← JWTManager  interface + jwtManager struct
       oauth_manager.go    ← OAuthManager interface + oauthManager struct
+    profile/
+      manager.go          ← ProfileManager interface + profileManager struct
 
   infrastructure/
     postgres/
       user_repository.go  ← implements user.UserRepository
       pat_repository.go   ← implements pat.PATRepository
+      profile_repository.go ← implements profile.ProfileRepository
     jwt/
       jwt.go              ← implements auth.jwtAdapter
     oauth2/
@@ -199,6 +210,9 @@ api/internal/
       routes.go
     users/
       handler.go          ← UserHandler { manager auth.AuthManager }
+      routes.go
+    profile/
+      handler.go          ← Handler { manager appprofile.ProfileManager }
       routes.go
     router.go
     common/
