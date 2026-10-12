@@ -4,7 +4,7 @@
         db-migrate db-rollback db-status \
         web-install web-start web-build web-test \
         cicd-spec-ref cicd-backend-cov cicd-frontend-cov cicd-adr \
-        apply-rulesets
+        apply-rulesets tools-test tools-lint
 
 ## api targets
 build:
@@ -15,6 +15,7 @@ run:
 
 test:
 	$(MAKE) -C api test
+	$(MAKE) -C tools/oauthfake test
 
 test-int:
 	$(MAKE) -C api test-int
@@ -30,12 +31,20 @@ test-int-cov:
 
 lint:
 	$(MAKE) -C api lint
+	$(MAKE) -C tools/oauthfake lint
 
 fmt:
 	$(MAKE) -C api fmt
 
 clean:
 	$(MAKE) -C api clean
+
+## tools targets
+tools-test:
+	$(MAKE) -C tools/oauthfake test
+
+tools-lint:
+	$(MAKE) -C tools/oauthfake lint
 
 ## db targets
 db-migrate:

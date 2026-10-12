@@ -45,6 +45,9 @@ jobs:
         with:
           go-version-file: go.work
 
+      - name: Test dev tools (tools/oauthfake — not part of coverage)
+        run: make tools-test
+
       - name: Run backend coverage check (unit only)
         run: make cicd-backend-cov
         env:
@@ -66,6 +69,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.work
+
+      - name: Test dev tools (tools/oauthfake — not part of coverage)
+        run: make tools-test
 
       - name: Run backend coverage check (unit + integration)
         run: make cicd-backend-cov

@@ -28,6 +28,10 @@ use ./api
 
 The file is **committed** to the repository. `go.work.sum` is committed alongside it.
 
+> **Update (ADR-014):** the workspace also includes `./tools/oauthfake`, the
+> local OAuth2 fake used for development and tests. Further modules are added
+> with `go work use <dir>` and listed in `CLAUDE.md` under Repository Structure.
+
 ## Alternatives considered
 
 | Alternative | Why not chosen |

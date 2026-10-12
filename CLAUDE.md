@@ -77,7 +77,7 @@ docs/
 
 ```
 courtknights/
-  go.work           # Go workspace (coordinates api/ module)
+  go.work           # Go workspace (coordinates api/ and tools/oauthfake modules)
   Makefile          # Dispatcher — delegates to workspace Makefiles
   api/              # Go workspace
     go.mod
@@ -94,6 +94,8 @@ courtknights/
   web/              # Angular frontend workspace
   infra/            # Deployment workspace (scaffold — manifests and scripts)
   e2e/              # Acceptance test workspace (scaffold — Playwright)
+  tools/            # Development and test tooling (not shipped)
+    oauthfake/      # Local Google/GitHub OAuth2 fake — own Go module (ADR-014)
   docs/
     context/        # Business domain, users, glossary
     decisions/      # Global Architecture Decision Records (ADR-NNN_title.md)
@@ -110,7 +112,7 @@ courtknights/
 |------|---------|
 | Build backend | `make build` |
 | Run backend | `make run` |
-| Test backend | `make test` |
+| Test backend (+ dev tools) | `make test` |
 | Lint backend | `make lint` |
 | Install frontend deps | `make web-install` |
 | Run frontend dev server | `make web-start` |
@@ -150,6 +152,7 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 | Go workspace | go.work | [ADR-009](docs/decisions/ADR-009_go-workspace.md) |
 | Layered architecture (Handler / Manager / Repository) | Manager composition | [ADR-008](docs/decisions/ADR-008_layered-architecture.md) |
 | Database migrations | golang-migrate | [ADR-010](docs/decisions/ADR-010_migration-tool-golang-migrate.md) |
+| Local OAuth2 provider for dev/tests | In-repo Go fake (`tools/oauthfake`) | [ADR-014](docs/decisions/ADR-014_local-oauth-fake.md) |
 | Cross-feature dependencies | Narrow consumer-side interfaces, idempotent writes | [ADR-013](docs/decisions/ADR-013_cross-feature-dependencies.md) |
 
 ### Dependency tracking
