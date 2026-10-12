@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/courtknights/courtknights/internal/domain/ckerrors"
@@ -134,9 +135,25 @@ func (r *ProfileRepository) Update(ctx context.Context, userID uuid.UUID, patch 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("postgres: Update profile: %w", ckerrors.ErrProfileNotFound)
 		}
+		if isRegionCountryViolation(err) {
+			return nil, fmt.Errorf("postgres: Update profile: %w", ckerrors.ErrProfileConflict)
+		}
 		return nil, fmt.Errorf("postgres: Update profile: %w", err)
 	}
 	return p, nil
+}
+
+// regionCountryConstraint is the CHECK constraint that keeps a profile's region
+// within its country (db/migrations/005).
+const regionCountryConstraint = "user_profiles_region_country_check"
+
+// isRegionCountryViolation reports whether err is a violation of the
+// region/country CHECK constraint.
+func isRegionCountryViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == "23514" && // check_violation
+		pgErr.ConstraintName == regionCountryConstraint
 }
 
 // buildUpdateQuery assembles the UPDATE statement from the pre-built SET clauses.

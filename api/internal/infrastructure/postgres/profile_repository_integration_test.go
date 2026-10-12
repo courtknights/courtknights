@@ -465,3 +465,31 @@ func TestProfileRepository_List_StableOrderForDuplicateDisplayNames(t *testing.T
 		}
 	}
 }
+
+// #121: a write that would leave a region from another country (e.g. after a
+// concurrent country change) is reported as ErrProfileConflict.
+func TestProfileRepository_Update_RegionFromOtherCountry_ReturnsErrProfileConflict(t *testing.T) {
+	truncate(t)
+	userID := createTestUser(t, "Hugo")
+	repo := NewProfileRepository(testDB)
+
+	if err := repo.EnsureExists(context.Background(), userID, "Hugo"); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+	if _, err := repo.Update(context.Background(), userID, profile.ProfilePatch{Country: ptr("ES")}); err != nil {
+		t.Fatalf("set country: %v", err)
+	}
+
+	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{Region: ptr("FR-IDF")})
+	if !errors.Is(err, ckerrors.ErrProfileConflict) {
+		t.Errorf("expected ErrProfileConflict, got: %v", err)
+	}
+
+	p, err := repo.FindByUserID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if p.Region != nil {
+		t.Errorf("region must be unchanged, got %q", *p.Region)
+	}
+}

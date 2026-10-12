@@ -1,6 +1,7 @@
 -- user_profiles: extended profile for each user.
 -- Each row is owned by exactly one user (1:1 relationship).
 -- Preferences are stored as JSONB to allow schema-free sport-specific settings.
+-- A region always belongs to the profile's country (ISO 3166-2 prefix, #121).
 
 CREATE TABLE user_profiles (
     user_id       UUID         PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -13,5 +14,7 @@ CREATE TABLE user_profiles (
     category      VARCHAR(10)  CHECK (category IN ('first','second','third','fourth','fifth')),
     preferences   JSONB        NOT NULL DEFAULT '{}',
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT user_profiles_region_country_check
+        CHECK (region IS NULL OR (country IS NOT NULL AND region LIKE country || '-%'))
 );
