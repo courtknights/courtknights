@@ -143,7 +143,7 @@ The `EnsureExists` call must happen after the user upsert but before signing the
 | File                                  | Description                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `api/internal/api/profile/handler.go` | New `Handler { manager appprofile.ProfileManager }`; `getMyProfile`, `updateMyProfile`, `getUserProfile` |
-| `api/internal/api/profile/routes.go`  | Register `GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/:id/profile`               |
+| `api/internal/api/profile/routes.go`  | Register `GET /users/me/profile`, `PUT /users/me/profile` (now `PATCH`, #121), `GET /users/:id/profile` |
 | `api/cmd/server/server.go`            | Mount `apiprofile.NewRoutes(apiprofile.NewHandler(profileManager))` on the protected `/api/v1` group |
 
 Profile endpoints live in their own `api/profile/` package rather than in `api/users/`: per ADR-008 each Handler holds exactly one feature manager interface, and `api/users/` belongs to the authentication feature (`AuthManager`).

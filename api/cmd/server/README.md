@@ -31,11 +31,15 @@ take precedence over flag defaults.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/users/me` | Return the authenticated user's profile |
+| `GET` | `/api/v1/users/me` | Return the authenticated user's account (id, email, name, role) |
 | `PUT` | `/api/v1/users/:id/role` | Update a user's role (admin only) |
-| `POST` | `/api/v1/pats` | Create a Personal Access Token |
-| `GET` | `/api/v1/pats` | List the authenticated user's Personal Access Tokens |
-| `DELETE` | `/api/v1/pats/:id` | Revoke a Personal Access Token |
+| `GET` | `/api/v1/users` | List users (`page`, `page_size`, `fields`) |
+| `GET` | `/api/v1/users/me/profile` | Return the authenticated user's profile |
+| `PATCH` | `/api/v1/users/me/profile` | Update the profile with a JSON Merge Patch: omitted → unchanged, `null` → cleared (ADR-015) |
+| `GET` | `/api/v1/users/:id/profile` | Return another user's profile |
+| `POST` | `/api/v1/pats` | Create a Personal Access Token for a user (admin only) |
+| `GET` | `/api/v1/pats` | List all Personal Access Tokens, without secrets (admin only) |
+| `DELETE` | `/api/v1/pats/:id` | Revoke a Personal Access Token (admin only) |
 
 ---
 

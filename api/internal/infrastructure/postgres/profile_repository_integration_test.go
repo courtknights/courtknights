@@ -191,7 +191,7 @@ func TestProfileRepository_Update_PartialUpdateDisplayName(t *testing.T) {
 
 	// Set city first so we can confirm it is unchanged after update.
 	city := "Madrid"
-	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{City: &city})
+	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{City: profile.SetTo(city)})
 	if err != nil {
 		t.Fatalf("pre-update city: %v", err)
 	}
@@ -223,15 +223,15 @@ func TestProfileRepository_Update_AllFields(t *testing.T) {
 	dob := time.Date(1990, 5, 14, 0, 0, 0, 0, time.UTC)
 	patch := profile.ProfilePatch{
 		DisplayName: ptr("Grace Full"),
-		City:        ptr("Barcelona"),
-		Region:      ptr("ES-CT"),
-		Country:     ptr("ES"),
-		Gender:      ptr(profile.GenderFemale),
-		DateOfBirth: &dob,
-		Category:    ptr(profile.CategoryThird),
-		Preferences: &profile.Preferences{
-			CourtSide:  ptr(profile.CourtSideDrive),
-			Handedness: ptr(profile.HandednessRight),
+		City:        profile.SetTo("Barcelona"),
+		Region:      profile.SetTo("ES-CT"),
+		Country:     profile.SetTo("ES"),
+		Gender:      profile.SetTo(profile.GenderFemale),
+		DateOfBirth: profile.SetTo(dob),
+		Category:    profile.SetTo(profile.CategoryThird),
+		Preferences: profile.PreferencesPatch{
+			CourtSide:  profile.SetTo(profile.CourtSideDrive),
+			Handedness: profile.SetTo(profile.HandednessRight),
 		},
 	}
 
@@ -285,13 +285,13 @@ func TestProfileRepository_Update_PreferencesOnly(t *testing.T) {
 	}
 
 	// First set a city so we can confirm it remains unchanged.
-	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{City: ptr("Seville")})
+	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{City: profile.SetTo("Seville")})
 	if err != nil {
 		t.Fatalf("pre-update city: %v", err)
 	}
 
 	updated, err := repo.Update(context.Background(), userID, profile.ProfilePatch{
-		Preferences: &profile.Preferences{CourtSide: ptr(profile.CourtSideDrive)},
+		Preferences: profile.PreferencesPatch{CourtSide: profile.SetTo(profile.CourtSideDrive)},
 	})
 	if err != nil {
 		t.Fatalf("Update preferences: %v", err)
@@ -464,4 +464,186 @@ func TestProfileRepository_List_StableOrderForDuplicateDisplayNames(t *testing.T
 			t.Fatalf("order across pages: got %v, want %v (ascending user ID)", got, want)
 		}
 	}
+}
+
+// #121: a write that would leave a region from another country (e.g. after a
+// concurrent country change) is reported as ErrProfileConflict.
+func TestProfileRepository_Update_RegionFromOtherCountry_ReturnsErrProfileConflict(t *testing.T) {
+	truncate(t)
+	userID := createTestUser(t, "Hugo")
+	repo := NewProfileRepository(testDB)
+
+	if err := repo.EnsureExists(context.Background(), userID, "Hugo"); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+	if _, err := repo.Update(context.Background(), userID, profile.ProfilePatch{Country: profile.SetTo("ES")}); err != nil {
+		t.Fatalf("set country: %v", err)
+	}
+
+	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{Region: profile.SetTo("FR-IDF")})
+	if !errors.Is(err, ckerrors.ErrProfileConflict) {
+		t.Errorf("expected ErrProfileConflict, got: %v", err)
+	}
+
+	p, err := repo.FindByUserID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if p.Region != nil {
+		t.Errorf("region must be unchanged, got %q", *p.Region)
+	}
+}
+
+// ---- #121: merge-patch updates ----
+
+// fullProfile creates a profile with every field and both preferences set.
+func fullProfile(t *testing.T, repo *ProfileRepository) uuid.UUID {
+	t.Helper()
+	userID := createTestUser(t, "Merge")
+	if err := repo.EnsureExists(context.Background(), userID, "Merge"); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+	_, err := repo.Update(context.Background(), userID, profile.ProfilePatch{
+		City:        profile.SetTo("Madrid"),
+		Country:     profile.SetTo("ES"),
+		Region:      profile.SetTo("ES-MD"),
+		Gender:      profile.SetTo(profile.GenderMale),
+		DateOfBirth: profile.SetTo(time.Date(1990, 5, 14, 0, 0, 0, 0, time.UTC)),
+		Category:    profile.SetTo(profile.CategoryThird),
+		Preferences: profile.PreferencesPatch{
+			CourtSide:  profile.SetTo(profile.CourtSideBackhand),
+			Handedness: profile.SetTo(profile.HandednessLeft),
+		},
+	})
+	if err != nil {
+		t.Fatalf("fill profile: %v", err)
+	}
+	return userID
+}
+
+func TestProfileRepository_Update_ClearsEachField(t *testing.T) {
+	tests := []struct {
+		name  string
+		patch profile.ProfilePatch
+		check func(p *profile.Profile) bool
+	}{
+		{"city", profile.ProfilePatch{City: profile.Cleared[string]()},
+			func(p *profile.Profile) bool { return p.City == nil && p.Country != nil }},
+		{"region", profile.ProfilePatch{Region: profile.Cleared[string]()},
+			func(p *profile.Profile) bool { return p.Region == nil && *p.Country == "ES" }},
+		{"country with region", profile.ProfilePatch{Country: profile.Cleared[string](), Region: profile.Cleared[string]()},
+			func(p *profile.Profile) bool { return p.Country == nil && p.Region == nil && *p.City == "Madrid" }},
+		{"gender", profile.ProfilePatch{Gender: profile.Cleared[profile.Gender]()},
+			func(p *profile.Profile) bool { return p.Gender == nil && p.Category != nil }},
+		{"date of birth", profile.ProfilePatch{DateOfBirth: profile.Cleared[time.Time]()},
+			func(p *profile.Profile) bool { return p.DateOfBirth == nil && p.Gender != nil }},
+		{"category", profile.ProfilePatch{Category: profile.Cleared[profile.Category]()},
+			func(p *profile.Profile) bool { return p.Category == nil && p.DateOfBirth != nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			truncate(t)
+			repo := NewProfileRepository(testDB)
+			userID := fullProfile(t, repo)
+
+			got, err := repo.Update(context.Background(), userID, tt.patch)
+			if err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			stored, err := repo.FindByUserID(context.Background(), userID)
+			if err != nil {
+				t.Fatalf("FindByUserID: %v", err)
+			}
+			if !tt.check(got) || !tt.check(stored) {
+				t.Errorf("unexpected profile after clearing %s: %+v", tt.name, stored)
+			}
+		})
+	}
+}
+
+func TestProfileRepository_Update_PreferencesMerge(t *testing.T) {
+	drive, backhand := profile.CourtSideDrive, profile.CourtSideBackhand
+	left, right := profile.HandednessLeft, profile.HandednessRight
+	tests := []struct {
+		name           string
+		patch          profile.PreferencesPatch
+		wantCourtSide  *profile.CourtSide
+		wantHandedness *profile.Handedness
+	}{
+		{"set one key keeps the other", profile.PreferencesPatch{CourtSide: profile.SetTo(drive)}, &drive, &left},
+		{"remove one key keeps the other", profile.PreferencesPatch{Handedness: profile.Cleared[profile.Handedness]()}, &backhand, nil},
+		{"clear all", profile.PreferencesPatch{Clear: true}, nil, nil},
+		{"clear all then set", profile.PreferencesPatch{Clear: true, Handedness: profile.SetTo(right)}, nil, &right},
+		{"set and remove together", profile.PreferencesPatch{CourtSide: profile.Cleared[profile.CourtSide](), Handedness: profile.SetTo(right)}, nil, &right},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			truncate(t)
+			repo := NewProfileRepository(testDB)
+			userID := fullProfile(t, repo)
+
+			got, err := repo.Update(context.Background(), userID, profile.ProfilePatch{Preferences: tt.patch})
+			if err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			if !equalPtr(got.Preferences.CourtSide, tt.wantCourtSide) || !equalPtr(got.Preferences.Handedness, tt.wantHandedness) {
+				t.Errorf("preferences = %+v, want court_side=%v handedness=%v",
+					got.Preferences, deref(tt.wantCourtSide), deref(tt.wantHandedness))
+			}
+			if *got.City != "Madrid" {
+				t.Errorf("other fields must be unchanged, city = %v", got.City)
+			}
+		})
+	}
+}
+
+func TestProfileRepository_Update_EmptyPatch_NoWrite(t *testing.T) {
+	truncate(t)
+	repo := NewProfileRepository(testDB)
+	userID := fullProfile(t, repo)
+
+	before, err := repo.FindByUserID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	got, err := repo.Update(context.Background(), userID, profile.ProfilePatch{})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !got.UpdatedAt.Equal(before.UpdatedAt) || *got.City != "Madrid" {
+		t.Errorf("empty patch must not write: updated_at %v → %v", before.UpdatedAt, got.UpdatedAt)
+	}
+}
+
+func TestProfileRepository_Update_SetsUpdatedAt(t *testing.T) {
+	truncate(t)
+	repo := NewProfileRepository(testDB)
+	userID := fullProfile(t, repo)
+
+	before, err := repo.FindByUserID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	got, err := repo.Update(context.Background(), userID, profile.ProfilePatch{City: profile.Cleared[string]()})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !got.UpdatedAt.After(before.UpdatedAt) {
+		t.Errorf("updated_at must advance: %v → %v", before.UpdatedAt, got.UpdatedAt)
+	}
+}
+
+func equalPtr[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func deref[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }

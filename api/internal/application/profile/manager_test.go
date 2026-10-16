@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -115,77 +116,179 @@ func TestProfileManager_GetByUserID_ProfileNotFound_PropagatesError(t *testing.T
 	repo.AssertExpectations(t)
 }
 
-// ---- Update — validation ----
+// ---- Update ----
 
-// PM-05: No location fields — skips validation, calls repo.
-func TestProfileManager_Update_NoLocationFields_SkipsValidation_CallsRepo(t *testing.T) {
+// storedProfile returns a profile with the given country and region.
+func storedProfile(userID uuid.UUID, country, region *string) *profile.Profile {
+	return &profile.Profile{UserID: userID, DisplayName: "Alice", Country: country, Region: region}
+}
+
+// TestProfileManager_Update_LocationRules covers every row of the Location
+// rules table in FEATURE_clearable_profile_fields/02_architecture.md.
+func TestProfileManager_Update_LocationRules(t *testing.T) {
+	es, esmd := ptr("ES"), ptr("ES-MD")
+	tests := []struct {
+		name            string
+		storedCountry   *string
+		storedRegion    *string
+		patch           profile.ProfilePatch
+		wantInvalid     bool
+		wantRepoCountry profile.Field[string]
+		wantRepoRegion  profile.Field[string]
+	}{
+		{
+			name: "country changed, region absent → region cleared", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Country: profile.SetTo("FR")},
+			wantRepoCountry: profile.SetTo("FR"), wantRepoRegion: profile.Cleared[string](),
+		},
+		{
+			name: "country and region changed together", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Country: profile.SetTo("FR"), Region: profile.SetTo("FR-IDF")},
+			wantRepoCountry: profile.SetTo("FR"), wantRepoRegion: profile.SetTo("FR-IDF"),
+		},
+		{
+			name: "same country, region absent → region kept", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Country: profile.SetTo("ES")},
+			wantRepoCountry: profile.SetTo("ES"), wantRepoRegion: profile.Unchanged[string](),
+		},
+		{
+			name: "country cleared → region cleared", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Country: profile.Cleared[string]()},
+			wantRepoCountry: profile.Cleared[string](), wantRepoRegion: profile.Cleared[string](),
+		},
+		{
+			name: "region alone, checked against the stored country", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Region: profile.SetTo("ES-CT")},
+			wantRepoCountry: profile.Unchanged[string](), wantRepoRegion: profile.SetTo("ES-CT"),
+		},
+		{
+			name: "region alone from another country", storedCountry: es,
+			patch:       profile.ProfilePatch{Region: profile.SetTo("FR-IDF")},
+			wantInvalid: true,
+		},
+		{
+			name:        "region alone without a stored country",
+			patch:       profile.ProfilePatch{Region: profile.SetTo("ES-MD")},
+			wantInvalid: true,
+		},
+		{
+			name: "region cleared", storedCountry: es, storedRegion: esmd,
+			patch:           profile.ProfilePatch{Region: profile.Cleared[string]()},
+			wantRepoCountry: profile.Unchanged[string](), wantRepoRegion: profile.Cleared[string](),
+		},
+		{
+			name: "country cleared with a region in the same patch", storedCountry: es, storedRegion: esmd,
+			patch:       profile.ProfilePatch{Country: profile.Cleared[string](), Region: profile.SetTo("ES-MD")},
+			wantInvalid: true,
+		},
+		{
+			name:            "first country on an empty profile",
+			patch:           profile.ProfilePatch{Country: profile.SetTo("ES")},
+			wantRepoCountry: profile.SetTo("ES"), wantRepoRegion: profile.Cleared[string](),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockProfileRepository{}
+			userID := uuid.New()
+			repo.On("FindByUserID", mock.Anything, userID).Return(storedProfile(userID, tt.storedCountry, tt.storedRegion), nil)
+			updated := &profile.Profile{UserID: userID}
+			repo.On("Update", mock.Anything, userID, mock.Anything).Return(updated, nil)
+
+			got, err := newTestManager(repo).Update(context.Background(), userID, tt.patch)
+
+			if tt.wantInvalid {
+				require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
+				repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+				return
+			}
+			require.NoError(t, err)
+			assert.Same(t, updated, got)
+			sent := repo.Calls[1].Arguments.Get(2).(profile.ProfilePatch)
+			assert.Equal(t, tt.wantRepoCountry, sent.Country, "country sent to the repository")
+			assert.Equal(t, tt.wantRepoRegion, sent.Region, "region sent to the repository")
+		})
+	}
+}
+
+func TestProfileManager_Update_InvalidCountry(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{DisplayName: ptr("X")}
-	updated := &profile.Profile{UserID: userID, DisplayName: "X", CreatedAt: time.Now(), UpdatedAt: time.Now()}
-	repo.On("Update", mock.Anything, userID, patch).Return(updated, nil)
+	repo.On("FindByUserID", mock.Anything, userID).Return(storedProfile(userID, nil, nil), nil)
 
-	mgr := newTestManager(repo)
-	got, err := mgr.Update(context.Background(), userID, patch)
+	_, err := newTestManager(repo).Update(context.Background(), userID, profile.ProfilePatch{Country: profile.SetTo("XX")})
+
+	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestProfileManager_Update_EmptyPatch(t *testing.T) {
+	repo := &mockProfileRepository{}
+	userID := uuid.New()
+	stored := storedProfile(userID, ptr("ES"), ptr("ES-MD"))
+	repo.On("FindByUserID", mock.Anything, userID).Return(stored, nil)
+
+	got, err := newTestManager(repo).Update(context.Background(), userID, profile.ProfilePatch{})
 
 	require.NoError(t, err)
-	assert.Equal(t, updated, got)
-	repo.AssertExpectations(t)
+	assert.Same(t, stored, got)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// PM-06: Valid country + valid region — calls repo.
-func TestProfileManager_Update_ValidCountryAndRegion_CallsRepo(t *testing.T) {
+func TestProfileManager_Update_ProfileNotFound(t *testing.T) {
 	repo := &mockProfileRepository{}
 	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("ES"), Region: ptr("ES-MD")}
-	updated := &profile.Profile{UserID: userID, DisplayName: "Alice", Country: ptr("ES"), Region: ptr("ES-MD"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
-	repo.On("Update", mock.Anything, userID, patch).Return(updated, nil)
+	repo.On("FindByUserID", mock.Anything, userID).
+		Return(nil, fmt.Errorf("postgres: FindByUserID profile: %w", ckerrors.ErrProfileNotFound))
 
-	mgr := newTestManager(repo)
-	got, err := mgr.Update(context.Background(), userID, patch)
+	_, err := newTestManager(repo).Update(context.Background(), userID, profile.ProfilePatch{City: profile.SetTo("Madrid")})
+
+	require.ErrorIs(t, err, ckerrors.ErrProfileNotFound)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestProfileManager_Update_Conflict(t *testing.T) {
+	repo := &mockProfileRepository{}
+	userID := uuid.New()
+	repo.On("FindByUserID", mock.Anything, userID).Return(storedProfile(userID, ptr("ES"), nil), nil)
+	repo.On("Update", mock.Anything, userID, mock.Anything).
+		Return(nil, fmt.Errorf("postgres: Update profile: %w", ckerrors.ErrProfileConflict))
+
+	_, err := newTestManager(repo).Update(context.Background(), userID, profile.ProfilePatch{Region: profile.SetTo("ES-CT")})
+
+	require.ErrorIs(t, err, ckerrors.ErrProfileConflict)
+}
+
+func TestProfileManager_Update_RepositoryError(t *testing.T) {
+	repo := &mockProfileRepository{}
+	userID := uuid.New()
+	repo.On("FindByUserID", mock.Anything, userID).Return(storedProfile(userID, nil, nil), nil)
+	repo.On("Update", mock.Anything, userID, mock.Anything).Return(nil, errors.New("db down"))
+
+	_, err := newTestManager(repo).Update(context.Background(), userID, profile.ProfilePatch{City: profile.SetTo("Madrid")})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "profile manager: Update")
+}
+
+func TestProfileManager_Update_NonLocationFieldsPassThrough(t *testing.T) {
+	repo := &mockProfileRepository{}
+	userID := uuid.New()
+	repo.On("FindByUserID", mock.Anything, userID).Return(storedProfile(userID, ptr("ES"), ptr("ES-MD")), nil)
+	patch := profile.ProfilePatch{
+		DisplayName: ptr("Alice B."),
+		City:        profile.Cleared[string](),
+		Gender:      profile.Cleared[profile.Gender](),
+		DateOfBirth: profile.Cleared[time.Time](),
+		Category:    profile.SetTo(profile.CategorySecond),
+		Preferences: profile.PreferencesPatch{Handedness: profile.Cleared[profile.Handedness]()},
+	}
+	repo.On("Update", mock.Anything, userID, patch).Return(&profile.Profile{UserID: userID}, nil)
+
+	_, err := newTestManager(repo).Update(context.Background(), userID, patch)
 
 	require.NoError(t, err)
-	assert.Equal(t, updated, got)
 	repo.AssertExpectations(t)
-}
-
-// PM-07: Invalid country — returns error before calling repo.
-func TestProfileManager_Update_InvalidCountry_ReturnsErrorWithoutCallingRepo(t *testing.T) {
-	repo := &mockProfileRepository{}
-	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("XX")}
-
-	mgr := newTestManager(repo)
-	_, err := mgr.Update(context.Background(), userID, patch)
-
-	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
-	repo.AssertNotCalled(t, "Update")
-}
-
-// PM-08: Region without country — returns error before calling repo.
-func TestProfileManager_Update_RegionWithoutCountry_ReturnsErrorWithoutCallingRepo(t *testing.T) {
-	repo := &mockProfileRepository{}
-	userID := uuid.New()
-	patch := profile.ProfilePatch{Region: ptr("ES-MD")}
-
-	mgr := newTestManager(repo)
-	_, err := mgr.Update(context.Background(), userID, patch)
-
-	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
-	repo.AssertNotCalled(t, "Update")
-}
-
-// PM-09: Valid country, mismatched region — returns error before calling repo.
-func TestProfileManager_Update_MismatchedRegion_ReturnsErrorWithoutCallingRepo(t *testing.T) {
-	repo := &mockProfileRepository{}
-	userID := uuid.New()
-	patch := profile.ProfilePatch{Country: ptr("ES"), Region: ptr("FR-75")}
-
-	mgr := newTestManager(repo)
-	_, err := mgr.Update(context.Background(), userID, patch)
-
-	require.ErrorIs(t, err, ckerrors.ErrInvalidLocation)
-	repo.AssertNotCalled(t, "Update")
 }
 
 // ---- List ----

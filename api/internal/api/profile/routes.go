@@ -17,6 +17,6 @@ func NewRoutes(h *Handler) *Routes {
 func (r *Routes) Register(g *echo.Group) {
 	g.GET("/users", r.handler.listUsers)
 	g.GET("/users/me/profile", r.handler.getMyProfile)
-	g.PUT("/users/me/profile", r.handler.updateMyProfile)
+	g.PATCH("/users/me/profile", r.handler.updateMyProfile)
 	g.GET("/users/:id/profile", r.handler.getUserProfile)
 }

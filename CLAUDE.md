@@ -153,6 +153,7 @@ The rationale for framework and technology choices is captured in the ADRs. Alwa
 | Layered architecture (Handler / Manager / Repository) | Manager composition | [ADR-008](docs/decisions/ADR-008_layered-architecture.md) |
 | Database migrations | golang-migrate | [ADR-010](docs/decisions/ADR-010_migration-tool-golang-migrate.md) |
 | Local OAuth2 provider for dev/tests | In-repo Go fake (`tools/oauthfake`) | [ADR-014](docs/decisions/ADR-014_local-oauth-fake.md) |
+| Partial updates (`PATCH`) | JSON Merge Patch (RFC 7396) | [ADR-015](docs/decisions/ADR-015_partial-updates-json-merge-patch.md) |
 | Cross-feature dependencies | Narrow consumer-side interfaces, idempotent writes | [ADR-013](docs/decisions/ADR-013_cross-feature-dependencies.md) |
 
 ### Dependency tracking

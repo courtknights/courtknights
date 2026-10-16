@@ -24,11 +24,15 @@ type ProfileManager interface {
 	// Returns ckerrors.ErrProfileNotFound if no profile exists.
 	GetByUserID(ctx context.Context, userID uuid.UUID) (*profile.Profile, error)
 
-	// Update validates the patch and applies it to the user's profile.
-	// If Country or Region are non-nil, location codes are validated before
-	// the repository is called. If any code is invalid it returns an error
-	// wrapping ckerrors.ErrInvalidLocation without calling the repository;
-	// that error is returned unprefixed so its message is safe to show to clients.
+	// Update applies a JSON Merge Patch (ADR-015) to the user's profile.
+	// It loads the stored profile and applies the location rules: a changed or
+	// cleared country clears a region the patch does not set, and a region is
+	// validated against the effective country (the patched one, otherwise the
+	// stored one). An invalid location returns an error wrapping
+	// ckerrors.ErrInvalidLocation without calling the repository; that error is
+	// returned unprefixed so its message is safe to show to clients.
+	// An empty patch returns the stored profile without writing.
+	// ckerrors.ErrProfileNotFound and ckerrors.ErrProfileConflict are returned wrapped.
 	Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error)
 
 	// List returns a paginated list of profiles joined with basic user data.
@@ -65,10 +69,17 @@ func (m *profileManager) GetByUserID(ctx context.Context, userID uuid.UUID) (*pr
 }
 
 func (m *profileManager) Update(ctx context.Context, userID uuid.UUID, patch profile.ProfilePatch) (*profile.Profile, error) {
-	if patch.Country != nil || patch.Region != nil {
-		if err := profile.ValidateLocation(patch.Country, patch.Region); err != nil {
-			return nil, err
-		}
+	stored, err := m.profiles.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("profile manager: Update: %w", err)
+	}
+	if patch.IsEmpty() {
+		return stored, nil
+	}
+
+	patch, err = applyLocationRules(stored, patch)
+	if err != nil {
+		return nil, err
 	}
 
 	p, err := m.profiles.Update(ctx, userID, patch)
@@ -76,6 +87,45 @@ func (m *profileManager) Update(ctx context.Context, userID uuid.UUID, patch pro
 		return nil, fmt.Errorf("profile manager: Update: %w", err)
 	}
 	return p, nil
+}
+
+// applyLocationRules keeps country and region consistent
+// (FEATURE_clearable_profile_fields, 02_architecture.md → Location rules):
+//
+//  1. a country with a value must be a valid ISO 3166-1 alpha-2 code;
+//  2. a country that changes or is cleared, with no region in the patch,
+//     clears the stored region; the same country keeps it;
+//  3. a region with a value must belong to the effective country (the
+//     patched country if present, otherwise the stored one);
+//  4. a region with no effective country is rejected.
+func applyLocationRules(stored *profile.Profile, patch profile.ProfilePatch) (profile.ProfilePatch, error) {
+	country := stored.Country
+	if patch.Country.Set {
+		country = patch.Country.Value
+		if !patch.Region.Set && !sameValue(stored.Country, patch.Country.Value) {
+			patch.Region = profile.Cleared[string]()
+		}
+	}
+
+	switch {
+	case patch.Region.Value != nil:
+		if err := profile.ValidateLocation(country, patch.Region.Value); err != nil {
+			return profile.ProfilePatch{}, err
+		}
+	case patch.Country.Value != nil:
+		if err := profile.ValidateLocation(patch.Country.Value, nil); err != nil {
+			return profile.ProfilePatch{}, err
+		}
+	}
+	return patch, nil
+}
+
+// sameValue reports whether two optional strings hold the same value.
+func sameValue(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func (m *profileManager) List(ctx context.Context, params profile.ListParams) ([]*profile.ProfileListItem, int64, error) {

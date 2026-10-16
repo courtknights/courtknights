@@ -49,7 +49,7 @@ api/internal/
   api/
     profile/
       handler.go          # Handler { manager appprofile.ProfileManager }
-      routes.go            # GET/PUT /users/me/profile, GET /users/:id/profile, GET /users
+      routes.go            # GET/PATCH /users/me/profile, GET /users/:id/profile, GET /users
 ```
 
 Profile endpoints live in their own `api/profile/` Handler — per ADR-008, a
@@ -307,6 +307,13 @@ are always present in the response and serialise as `null` when unset (AC-02).
 
 ### Update own profile
 
+> **Superseded by [FEATURE_clearable_profile_fields](../FEATURE_clearable_profile_fields/02_architecture.md)
+> (#121).** The endpoint is now `PATCH /api/v1/users/me/profile` with JSON
+> Merge Patch semantics ([ADR-015](../../decisions/ADR-015_partial-updates-json-merge-patch.md)):
+> `null` clears a field, preferences are merged recursively, and a region
+> alone is validated against the stored country. `PUT` returns `404`. The
+> original contract is kept below for history.
+
 ```
 PUT /api/v1/users/me/profile
 Authorization: Bearer <jwt>
@@ -383,7 +390,7 @@ New `api/profile/routes.go`, mounted on the protected `/api/v1` group in `server
 ```
 GET  /api/v1/users                     → handler.listUsers
 GET  /api/v1/users/me/profile          → handler.getMyProfile
-PUT  /api/v1/users/me/profile          → handler.updateMyProfile
+PATCH /api/v1/users/me/profile         → handler.updateMyProfile   (was PUT, see #121)
 GET  /api/v1/users/:id/profile         → handler.getUserProfile
 ```
 
